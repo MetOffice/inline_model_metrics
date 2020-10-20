@@ -79,10 +79,8 @@ class TempestTracker(AbstractApp):
         :param dict metadata: The collection of metadata
         :param str tracking_type: The type of tracking to run
         """
-        print('cwd ', os.getcwd())
-        # nl_file = './namelist_'+tracking_type.lower()+'.nl'
-        nl_file = os.path.join(os.getcwd(), tracking_type + '.nl')
-        cmds = self.construct_command(nl_file, tracking_type)
+        self.logger.error(f'cwd {os.getcwd()}')
+        cmds = self.construct_command(tracking_type)
 
         filenames, period, output_uv, psl_var = self.data_files(self.cylc_task_cylc_time, self.um_runid,
                                                            self.resolution_code, self.input_directory,
@@ -180,40 +178,35 @@ class TempestTracker(AbstractApp):
         metadata['topo_var'] = 'surface_altitude'
         return metadata
 
-    def construct_command(self, nl_file, tracking_type):
+    def construct_command(self, tracking_type):
         """
         Read the TempestExtreme command line parameters from the configuration.
-        """
-        commands = {}
-        # for wibble in self.app_config.
-        return commands
 
-        # nl_dict = {}
-        # with open(nl_file, 'r') as infile:
-        #     for line in infile.readlines():
-        #         if '&' + tracking_type in line:
-        #             # section = line.strip().split(':')[-1][:-1]
-        #             section = line.strip().split('_')[-1]
-        #             nl_dict[section] = {}
-        #         elif '=' in line:
-        #             line_val = line.strip().split('=', 1)
-        #             parameter = line_val[0]
-        #             # strip the comma from the end of the namelist line
-        #             value = line_val[1][:-1]
-        #             nl_dict[section][parameter] = value
-        #
-        # cmd_step = {}
-        # cmds = {}
-        # for step in nl_dict:
-        #     print('step ', step)
-        #     cmd_step[step] = []
-        #     for elt in nl_dict[step]:
-        #         if nl_dict[step][elt] != '':
-        #             cmd_step[step].append('--' + elt + ' ' + nl_dict[step][elt])
-        #     cmds[step] = ' '.join(cmd_step[step])
-        #
-        # print('cmds ', cmds)
-        # return cmds
+        :param str tracking_type: The name of the type of tracking that will
+            be performed.
+        :returns: A dictionary with keys of `detect` and `stitch` and the
+            values for each of these is a string containing the command
+            line parameters for each of these TempestExtreme steps. The
+            parameters are sorted into alphabetical order in each line.
+        :rtype: dict
+        """
+        # TODO latname and loname aren't in
+        #  https://climate.ucdavis.edu/tempestextremes.php#DetectNodes
+
+        # TODO in stitch threshold or thresholdcmd?
+
+        commands = {}
+        for step in ['detect', 'stitch']:
+            step_config = self.app_config.section_to_dict(
+                f'{tracking_type}_{step}'
+            )
+
+
+            step_arguments = [f'--{parameter} {step_config[parameter]}'
+                              for parameter in sorted(list(step_config.keys()))
+                              if step_config[parameter]]
+            commands[step] = ' '.join(step_arguments)
+        return commands
 
     def data_files(self, *args):
         raise NotImplementedError

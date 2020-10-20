@@ -33,8 +33,12 @@ class TestTempestTracker(unittest.TestCase):
         mergedist=6.0
         closedcontourcmd="air_pressure_at_sea_level,200.0,5.5,0;_DIFF(zg(0),zg(2)),-6.0,6.5,1.0"
         outputcmd="air_pressure_at_sea_level,min,0;_VECMAG(x_wind,y_wind),max,2;_DIFF(zg(0),zg(2)),min,6.5;surface_altitude,max,0"
-        latname='latitude'
-        lonname='longitude'
+        latname="latitude"
+        lonname="longitude"
+        verbosity=
+        
+        [tc_slp_stitch]
+        min_endpoint_dist=8.0
         """
 
     def tearDown(self):
@@ -85,6 +89,29 @@ class TestTempestTracker(unittest.TestCase):
         }
         self.assertEqual(metadata, expected)
 
+    def test_construct_command(self):
+        """Test that the command dict is created from the config file"""
+
+        _create_app_config_file(self.cfg_file, self.basic_app_config)
+        args = ['-c', self.cfg_file, '-q']
+        app = TempestTracker(args)
+        app._get_app_options()
+        app._get_environment_variables()
+        commands = app.construct_command('tc_slp')
+        expected = {
+            'detect': '--closedcontourcmd "air_pressure_at_sea_level,200.0,5.5,'
+                      '0;_DIFF(zg(0),zg(2)),-6.0,6.5,1.0" '
+                      '--latname "latitude" '                      
+                      '--lonname "longitude" '
+                      '--mergedist 6.0 '
+                      '--outputcmd "air_pressure_at_sea_level,min,0;_VECMAG('
+                      'x_wind,y_wind),max,2;_DIFF(zg(0),zg(2)),min,6.5;surface'
+                      '_altitude,max,0" '
+                      '--searchbymin "air_pressure_at_sea_level"',
+            'stitch': '--min_endpoint_dist 8.0'
+        }
+        self.maxDiff = None  # Show the full diff if test fails
+        self.assertEqual(commands, expected)
 
 def _create_app_config_file(config_file, config_text):
     with open(config_file, 'w') as fh:

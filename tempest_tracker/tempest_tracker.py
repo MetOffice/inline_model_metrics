@@ -1,8 +1,12 @@
 # (C) British Crown Copyright 2020, Met Office.
 # Please see LICENSE for license details.
+import glob
 import os
+import shutil
 import subprocess
 import sys
+
+import iris
 
 from afterburner.apps import AbstractApp
 
@@ -82,12 +86,12 @@ class TempestTracker(AbstractApp):
         self.logger.error(f'cwd {os.getcwd()}')
         cmds = self.construct_command(tracking_type)
 
-        filenames, period, output_uv, psl_var = self.data_files(self.cylc_task_cylc_time, self.um_runid,
-                                                           self.resolution_code, self.input_directory,
-                                                           self.output_directory, metadata)
+        filenames, period = self.generate_data_files()
 
-        candidatefile = os.path.join(self.output_directory,
-                                     'candidate_file_' + self.cylc_task_cylc_time + '_' + tracking_type + '.txt')
+        candidatefile = os.path.join(
+            self.output_directory,
+            f'candidate_file_{self.cylc_task_cylc_time}_{tracking_type}.txt'
+        )
 
         files_extend = False
         if not files_extend:
@@ -97,7 +101,7 @@ class TempestTracker(AbstractApp):
                 filenames['ufile'], filenames['vfile'], filenames['topofile'],
                 candidatefile)
         else:
-
+            #TODO add better description for extend files in the metadata
             cmd_io = '{} --in_data "{};{};{};{};{};{};{};{};{};{};{};{};{}" --out {} '.format(
                 self.tc_detect_script, filenames['pslfile'], filenames['zgfile'],
                 filenames['ufile'], filenames['vfile'], filenames['rvfile'],
@@ -166,7 +170,6 @@ class TempestTracker(AbstractApp):
         metadata['model'] = self.um_runid
         metadata['resol'] = self.resolution_code
         metadata['model_name'] = metadata['model']
-        metadata['psl_var'] = 'air_pressure_at_sea_level'
         metadata['u_var'] = 'x_wind'
         metadata['v_var'] = 'y_wind'
         if not zg_available:
@@ -201,15 +204,155 @@ class TempestTracker(AbstractApp):
                 f'{tracking_type}_{step}'
             )
 
-
             step_arguments = [f'--{parameter} {step_config[parameter]}'
                               for parameter in sorted(list(step_config.keys()))
                               if step_config[parameter]]
             commands[step] = ' '.join(step_arguments)
         return commands
 
-    def data_files(self, *args):
-        raise NotImplementedError
+    def generate_data_files(self):
+        """
+        Find...
+
+        :returns:
+        :rtype: tuple
+        """
+        timestamp_day = self.cylc_task_cylc_time[:8]
+        self.logger.debug('time_stamp_day ', timestamp_day)
+        file_search = os.path.join(
+            self.input_directory,
+            f'atmos_{self.um_runid}*{timestamp_day}??-*-slp.nc')
+        self.logger.debug('file_search {file_search}')
+        files = sorted(glob.glob(file_search))
+        self.logger.debug('files {files}')
+        if not files:
+            msg = f'No input files found for glob pattern {file_search}'
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        periods = []
+        for filename in files:
+            period = os.path.basename(filename).split('_')[3]
+            periods.append(period)
+            unique_periods = list(set(periods))
+        if len(unique_periods) == 0:
+            msg = 'No filename periods found'
+            self.logger.error(msg)
+            raise ValueError(msg)
+        elif len(unique_periods) != 1:
+            msg = 'No filename periods found'
+            self.logger.error(msg)
+            raise ValueError(msg)
+        else:
+            period = periods[0]
+
+        filenames = self.process_input_files(period)
+
+        return filenames, period
+
+    def process_input_files(self, period):
+        """
+        Set up and associate file names with variables
+
+        Things to think about:
+            when using levels of a variable (e.g. zg_available), how to make
+            sure that the (0), (1) etc indices in the calculations refer to
+            the right levels?
+
+        """
+        filetypes_required = ['pslfile', 'zgfile', 'ufile', 'vfile',
+                              'ws10mfile', 'rvfile', 'rvT63file', 'u10mfile',
+                              'u10mfile', 'v10mfile', 'viwvefile', 'viwvnfile',
+                              'tafile']
+        processed_filenames = {}
+
+        processed_filenames['topofile'] = self.orography_file
+
+        #TODO: I don't think that varname is ever used
+        variables_required = {}
+        variables_required['pslfile'] = {'fname': 'slp',
+                                         'varname': self.psl_std_name}
+        variables_required['zgfile'] = {'fname': 'zg_available',
+                                        'varname': 'unknown',
+                                        'varname_new': 'zg_available'}
+        variables_required['ufile'] = {'fname': 'ua',
+                                       'varname': 'x_wind'}
+        variables_required['vfile'] = {'fname': 'va',
+                                       'varname': 'y_wind'}
+        variables_required['ws10mfile'] = {'fname': 'wsas',
+                                           'varname': 'wind_speed'}
+        variables_required['rvfile'] = {'fname': 'rv',
+                                        'varname': 'unknown',
+                                        'varname_new': 'rv'}
+        variables_required['rvT63file'] = {'fname': 'rvT63',
+                                           'varname': 'unknown',
+                                           'varname_new': 'rvT63'}
+        variables_required['u10mfile'] = {'fname': 'u10m',
+                                          'varname': 'x_wind',
+                                          'varname_new': 'uas'}
+        variables_required['v10mfile'] = {'fname': 'v10m',
+                                          'varname': 'y_wind',
+                                          'varname_new': 'vas'}
+        variables_required['viwvefile'] = {'fname': 'viwve',
+                                           'varname': 'unknown',
+                                           'varname_new': 'viwve'}
+        variables_required['viwvnfile'] = {'fname': 'viwvn',
+                                           'varname': 'unknown',
+                                           'varname_new': 'viwvn'}
+        variables_required['tafile'] = {'fname': 'ta',
+                                        'varname': 'unknown',
+                                        'varname_new': 'ta'}
+
+        filename_format = 'atmos_{}a_6h_{}_pt-{}.nc'
+
+        for filetype in filetypes_required:
+            filename = filename_format.format(
+                self.um_runid,
+                period,
+                variables_required[filetype]['fname']
+            )
+
+            input_path = os.path.join(self.input_directory, filename)
+            if not os.path.exists(input_path):
+                msg = f'Unable to find expected input file {input_path}'
+                self.logger.error(msg)
+                raise ValueError(msg)
+
+            output_path = os.path.join(self.output_directory, filename)
+
+            reference_name = filename_format.format(
+                self.um_runid,
+                period,
+                variables_required['pslfile']['fname']
+            )
+            reference_path = os.path.join(self.input_directory, reference_name)
+
+            if (variables_required[filetype]['fname'] in
+                    ['ua', 'va', 'wsas', 'rv', 'rvT63', 'u10m', 'v10m']):
+                # regrid u and v to t grid and rename variable if necessary
+                cube = iris.load_cube(input_path)
+                reference = iris.load_cube(reference_path)
+                regridded = cube.regrid(reference, iris.analysis.Linear())
+                if 'varname_new' in variables_required[filetype]:
+                    regridded.var_name = (variables_required[filetype]
+                                                            ['varname_new'])
+                iris.save(regridded, output_path)
+            elif (variables_required[filetype]['fname'] in
+                  ['ta', 'zg_available']):
+                # rename variables only - could do with ncrename instead
+                cube = iris.load_cube(input_path)
+                if 'varname_new' in variables_required[filetype]:
+                    cube.var_name = variables_required[filetype]['varname_new']
+                iris.save(cube, output_path)
+            else:
+                if not os.path.exists(output_path):
+                    shutil.copyfile(input_path, output_path)
+
+            # newer tempest can specify names of latitude, longitude
+            # fix_lat_lon(fname_local)
+            processed_filenames[filetype] = output_path
+
+        return processed_filenames
 
     def read_and_plot_tracks(self, *args, **kwargs):
         raise NotImplementedError
@@ -230,6 +373,10 @@ class TempestTracker(AbstractApp):
                                                              'tc_detect_script')
         self.tc_stitch_script = self.app_config.get_property('common',
                                                              'tc_stitch_script')
+        self.psl_std_name = self.app_config.get_property('common',
+                                                         'psl_std_name')
+        self.orography_file = self.app_config.get_property('common',
+                                                           'orography_file')
 
     def _get_environment_variables(self):
         """

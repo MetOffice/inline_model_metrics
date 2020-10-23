@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 import iris
+import numpy as np
 
 from afterburner.apps import AbstractApp
 
@@ -52,7 +53,7 @@ class TempestTracker(AbstractApp):
         metadata = self.collect_metadata(True)
 
         # TODO please define
-        nVars_stitch = 6 # lon, lat, psl, topo
+        n_vars_stitch = 6 # lon, lat, psl, topo
 
         # TODO Move to config
         track_type = 'tc_slp'
@@ -66,9 +67,11 @@ class TempestTracker(AbstractApp):
             if os.stat(trackedfile).st_size > 0:
                 title = track_type + ' tracks'
                 self.read_and_plot_tracks(
-                    trackedfile, nc_file, tracking_period, self.um_runid,
-                    self.resolution_code, title=title, feature_type=track_type,
-                    nVars_stitch=nVars_stitch
+                    trackedfile, nc_file,
+                    tracking_period,
+                    title=title,
+                    feature_type=track_type,
+                    num_vars_stitch=n_vars_stitch
                 )
             else:
                 self.logger.error(f'candidatefile has data but no tracks '
@@ -84,75 +87,84 @@ class TempestTracker(AbstractApp):
         :param str tracking_type: The type of tracking to run
         """
         self.logger.error(f'cwd {os.getcwd()}')
-        cmds = self.construct_command(tracking_type)
 
-        filenames, period = self.generate_data_files()
+        filenames, tracking_period = self.generate_data_files()
 
         candidatefile = os.path.join(
             self.output_directory,
             f'candidate_file_{self.cylc_task_cylc_time}_{tracking_type}.txt'
         )
+        self.logger.debug(f'candidatefile {candidatefile}')
 
-        files_extend = False
-        if not files_extend:
+
+        if not self.extend_files:
             # identify candidates
             cmd_io = '{} --in_data "{};{};{};{};{}" --out {} '.format(
-                self.tc_detect_script, filenames['pslfile'], filenames['zgfile'],
-                filenames['ufile'], filenames['vfile'], filenames['topofile'],
+                self.tc_detect_script,
+                filenames['pslfile'],
+                filenames['zgfile'],
+                filenames['ufile'],
+                filenames['vfile'],
+                filenames['topofile'],
                 candidatefile)
         else:
             #TODO add better description for extend files in the metadata
-            cmd_io = '{} --in_data "{};{};{};{};{};{};{};{};{};{};{};{};{}" --out {} '.format(
-                self.tc_detect_script, filenames['pslfile'], filenames['zgfile'],
-                filenames['ufile'], filenames['vfile'], filenames['rvfile'],
-                filenames['u10mfile'], filenames['v10mfile'],
+            cmd_io = ('{} --in_data "{};{};{};{};{};{};{};{};{};{};{};{};{}" '
+                      '--out {} '.format(
+                self.tc_detect_script,
+                filenames['pslfile'],
+                filenames['zgfile'],
+                filenames['ufile'],
+                filenames['vfile'],
+                filenames['rvfile'],
+                filenames['u10mfile'],
+                filenames['v10mfile'],
                 filenames['ws10mfile'],
-                filenames['viwvefile'], filenames['viwvnfile'],
+                filenames['viwvefile'],
+                filenames['viwvnfile'],
                 filenames['tafile'],
-                filenames['rvT63file'], filenames['topofile'], candidatefile)
+                filenames['rvT63file'],
+                filenames['topofile'],
+                candidatefile)
+            )
 
-        cmd_detect = cmd_io + cmds['detect']
-        print('tc command ', cmd_detect)
-        # python version 2 or 3
-        if int(sys.version[0]) == 2:
-            sts = subprocess.check_output(cmd_detect, shell=True,
-                                          stderr=subprocess.STDOUT,
-                                          universal_newlines=True)
-            print('sts ', sts)
-        else:
-            sts = subprocess.run(cmd_detect, shell=True, stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE,
-                                 universal_newlines=True)
-            print(sts.stdout)
-            if 'EXCEPTION' in sts.stdout:
-                raise Exception('Stop')
+        tracking_phase_commands = self.construct_command(tracking_type)
+        cmd_detect = cmd_io + tracking_phase_commands['detect']
+        self.logger.debug(f'tc command {cmd_detect}')
 
-        print('candidatefile ', candidatefile)
+        sts = subprocess.run(cmd_detect, shell=True, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,
+                             universal_newlines=True)
+        self.logger.debug(sts.stdout)
+        if 'EXCEPTION' in sts.stdout:
+            msg = (f'EXCEPTION found in TempestExtreme detect output\n'
+                   f'{sts.stdout}')
+            raise RuntimeError(msg)
 
-        tracking_period = period
-
-        trackedfile = os.path.join(self.output_directory,
-                                   'track_file_' + tracking_period + '_' + tracking_type + '.txt')
+        trackedfile = os.path.join(
+            self.output_directory,
+            f'track_file_{tracking_period}_{tracking_type}.txt'
+        )
 
         # stitch candidates together
-        cmd_stitch_io = '{} --in {} --out {} '.format(self.tc_stitch_script,
-                                                      candidatefile,
-                                                      trackedfile)
-        cmd_stitch = cmd_stitch_io + cmds['stitch']
-        print('tc command ', cmd_stitch)
-        if int(sys.version[0]) == 2:
-            sts = subprocess.check_output(cmd_stitch, shell=True,
-                                          stderr=subprocess.STDOUT,
-                                          universal_newlines=True)
-            print('sts ', sts)
-        else:
-            sts = subprocess.run(cmd_stitch, shell=True, stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE,
-                                 universal_newlines=True)
-            print('sts err ', sts.stderr)
+        cmd_stitch_io = '{} --in {} --out {} '.format(
+            self.tc_stitch_script,
+            candidatefile,
+            trackedfile
+        )
+        cmd_stitch = cmd_stitch_io + tracking_phase_commands['stitch']
+        self.logger.debug(f'tc command {cmd_stitch}')
+        sts = subprocess.run(cmd_stitch, shell=True, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,
+                             universal_newlines=True)
+        self.logger.debug(f'sts err {sts.stderr}')
 
-        parameter_outfile = os.path.join(self.output_directory, metadata[
-            'model'] + '_' + self.resolution_code + '_' + tracking_period + '_parameter_output_' + tracking_type + '.txt')
+        parameter_outfile = os.path.join(
+            self.output_directory,
+            f"{metadata['model']}_{self.resolution_code}_{tracking_period}_"
+            f"parameter_output_{tracking_type}.txt"
+        )
+
         self.write_parameter_file(parameter_outfile, cmd_detect, cmd_stitch)
 
         return candidatefile, trackedfile, filenames['pslfile'], tracking_period
@@ -212,9 +224,10 @@ class TempestTracker(AbstractApp):
 
     def generate_data_files(self):
         """
-        Find...
+        Identify and then fix the grids and var_names in the input files.
 
-        :returns:
+        :returns: A dictionary of the files found for this period and a string
+            containing the period between samples in the input data.
         :rtype: tuple
         """
         timestamp_day = self.cylc_task_cylc_time[:8]
@@ -236,30 +249,33 @@ class TempestTracker(AbstractApp):
             periods.append(period)
             unique_periods = list(set(periods))
         if len(unique_periods) == 0:
-            msg = 'No filename periods found'
+            msg = 'No tracked_file periods found'
             self.logger.error(msg)
             raise ValueError(msg)
         elif len(unique_periods) != 1:
-            msg = 'No filename periods found'
+            msg = 'No tracked_file periods found'
             self.logger.error(msg)
             raise ValueError(msg)
         else:
             period = periods[0]
 
-        filenames = self.process_input_files(period)
+        filenames = self._process_input_files(period)
 
         return filenames, period
 
-    def process_input_files(self, period):
+    def _process_input_files(self, period):
         """
-        Set up and associate file names with variables
+        Identify and then fix the grids and var_names in the input files.
 
-        Things to think about:
-            when using levels of a variable (e.g. zg_available), how to make
-            sure that the (0), (1) etc indices in the calculations refer to
-            the right levels?
-
+        :param str period:
+        :returns: A dictionary of the files found for this period and a string
+            containing the period between samples in the input data.
+        :rtype: dict
         """
+        # Things to think about:
+        #    when using levels of a variable (e.g. zg_available), how to make
+        #    sure that the (0), (1) etc indices in the calculations refer to
+        #    the right levels?
         filetypes_required = ['pslfile', 'zgfile', 'ufile', 'vfile',
                               'ws10mfile', 'rvfile', 'rvT63file', 'u10mfile',
                               'u10mfile', 'v10mfile', 'viwvefile', 'viwvnfile',
@@ -354,11 +370,181 @@ class TempestTracker(AbstractApp):
 
         return processed_filenames
 
-    def read_and_plot_tracks(self, *args, **kwargs):
-        raise NotImplementedError
+    def read_and_plot_tracks(self, trackedfile, nc_file, tracking_period,
+                             title='', feature_type='TC',
+                             num_vars_stitch=4):
+        """
+        Read and plot the tracks
 
-    def write_parameter_file(self, *args):
-        raise NotImplementedError
+        :param str trackedfile:
+        :param str nc_file:
+        :param str tracking_period: The model output period.
+        :param str title: The title for the plot.
+        :param str feature_type: The type of tracking.
+        :param int num_vars_stitch: The number of variables to stitch together.
+        """
+        #TODO: where does this six come from?
+        num_vars = num_vars_stitch + 6
+
+        cube = iris.load_cube(nc_file)
+        # Load trajectories into prodata (nVar,numtraj,maxLines)
+        numtraj, numtraj_nh, numtraj_sh, storms = self.get_trajectories(
+            trackedfile, num_vars, num_vars_stitch, cube)
+
+        # plot_trajectories_basemap(numtraj, prodata)
+        self.plot_trajectories_cartopy(numtraj, prodata, trackedfile,
+                                  tracking_period, self.um_runid, self.resolution_code, storms,
+                                  title=title, feature_type=feature_type)
+
+    def write_parameter_file(self, outfile, cmd_detect, cmd_stitch):
+        """
+        Write the parameter file
+
+        :param str outfile: The path of the file to write to
+        :param str cmd_detect: The detection command
+        :param str cmd_stitch: The stitch command
+        """
+        nl = '\n'
+        with open(outfile, 'w') as fh:
+            fh.write('detect cmd ' + cmd_detect + nl)
+            fh.write(nl)
+            fh.write('stitch cmd ' + cmd_stitch + nl)
+
+    def get_trajectories(self, tracked_file, num_vars, nVars_stitch,
+                         cube):
+        """
+        Get the trajectories from the tracked output.
+        """
+        self.logger.debug(f'Running getTrajectories on {tracked_file}')
+
+        header_delim = 'start'
+
+        self.logger.debug(f'nVars set to {num_vars} and headerDelimStr set to {header_delim}')
+
+        #TODO why - 2 + 1?
+        nVars_offset = nVars_stitch - 2 + 1
+
+        coords = {
+            'lon': 2,
+            'lat': 3,
+            'year': 3 + nVars_offset,
+            'month': 3 + nVars_offset + 1,
+            'day': 3 + nVars_offset + 2,
+            'hour': 3 + nVars_offset + 3
+        }
+
+        # Initialize storms and line counter
+        storms = []
+        line_of_traj = None
+
+        with open(tracked_file) as file_handle:
+            for line in file_handle:
+                line_array = line.split()
+                if header_delim in line:  # check if header string is satisfied
+                    line_of_traj = 0  # reset trajectory line to zero
+                    track_length = int(line_array[1])
+                    storm = {}
+                    storms.append(storm)
+                    storm['length'] = track_length
+                    for coord in coords:
+                        storm[coord] = []
+                    storm['step'] = []
+                else:
+                    if line_of_traj <= track_length:
+                        lon = line_array[coords['lon']]
+                        lat = line_array[coords['lat']]
+                        year = line_array[coords['year']]
+                        month = line_array[coords['month']]
+                        day = line_array[coords['day']]
+                        hour = line_array[coords['hour']]
+                        step = self.convert_date_to_step(
+                            cube,
+                            int(year),
+                            int(month),
+                            int(day),
+                            int(hour)
+                        )
+                        # now check if there is a gap in the traj, if so fill it in
+                        if line_of_traj > 0:
+                            # print ('gap in traj ',track_length, year, month, day, hour, step, storm[storm_id]['step'][-1])
+                            # print ('cube ',cube)
+                            if (step - storm['step'][-1]) > 1:
+                                # add extra points before the next one in the TempExt trajectory
+                                self.fill_traj_gap(storm, step, lon, lat, year,
+                                              month, day, hour)
+                        for coord in coords:
+                            storm[coord].append(line_array[coords[coord]])
+                        storm['step'].append(step)
+                    line_of_traj += 1  # increment line
+
+        # Find total number of trajectories and maximum length of trajectories
+        trajectories_found = len(storms)
+        self.logger.debug(f'Found {trajectories_found} trajectories')
+
+        trajectories_found_northern_hemisphere = 0
+        trajectories_found_southern_hemisphere = 0
+        for storm in storms:
+            lat = float(storm['lat'][0])
+            if lat < 0.0:
+                trajectories_found_southern_hemisphere += 1
+            else:
+                trajectories_found_northern_hemisphere += 1
+
+        self.logger.debug(f'trajectories_found tota, nh, sh '
+                          f'{trajectories_found} '
+                          f'{trajectories_found_northern_hemisphere} '
+                          f'{trajectories_found_southern_hemisphere}')
+
+        return (
+            trajectories_found,
+            trajectories_found_northern_hemisphere,
+            trajectories_found_southern_hemisphere,
+            storms
+        )
+
+    def plot_trajectories_cartopy(self, numtraj, prodata, trajfile, period, model,
+                                  resol, storms, feature_type='TC', title=''):
+        pass
+
+    def convert_date_to_step(self, cube, year, month, day, hour):
+        return None
+
+    def fill_traj_gap(self, storm, step, lon, lat, year, month, day, hour):
+        """
+        Fill the gap by linearly interpolating the lon, lat and adding steps.
+        The date and time is not interpolated and the end time is inserted
+        for the interpolated steps. Longitudes and their interpolation may wrap
+        around the 0/360 degree numerical discontinuity. The longitudes output
+        are between 0 and 359 degrees.
+
+        :param dict storm: Details of the current storm.
+        :param int step: The integer number of time points of the current
+            point since the time unit's epoch.
+        :param str lon: The longitude of the current point in the storm in
+            degrees.
+        :param str lat: The latitude of the current point in the storm in
+            degrees.
+        :param str year: Year of the current time point.
+        :param str month: Month of the current time point.
+        :param str day: Day of the current time point.
+        :param str hour: Hour of the current time point.
+        """
+        gap_length = step - storm['step'][-1]
+        # Using technique at https://stackoverflow.com/a/14498790 to handle
+        # longitudes wrapping around 0/360
+        dlon = ((((float(lon) - float(storm['lon'][-1])) + 180) % 360 - 180) /
+                gap_length)
+        dlat = (float(lat) - float(storm['lat'][-1])) / gap_length
+        for gap_index in range(1, gap_length):
+            lon1 = (float(storm['lon'][-1]) + dlon) % 360
+            lat1 = float(storm['lat'][-1]) + dlat
+            storm['lon'].append(str(lon1))
+            storm['lat'].append(str(lat1))
+            storm['step'].append(storm['step'][-1] + 1)
+            storm['year'].append(year)
+            storm['month'].append(month)
+            storm['day'].append(day)
+            storm['hour'].append(hour)
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""
@@ -377,6 +563,8 @@ class TempestTracker(AbstractApp):
                                                          'psl_std_name')
         self.orography_file = self.app_config.get_property('common',
                                                            'orography_file')
+        self.extend_files = self.app_config.get_bool_property('common',
+                                                              'extend_files')
 
     def _get_environment_variables(self):
         """
@@ -386,3 +574,4 @@ class TempestTracker(AbstractApp):
         """
         self.um_runid = os.environ['RUNID']
         self.cylc_task_cycle_time = os.environ['CYLC_TASK_CYCLE_TIME']
+

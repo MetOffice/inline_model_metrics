@@ -1,0 +1,25 @@
+Index: b/x/3/1/5/trunk/suite.rc
+===================================================================
+--- b/x/3/1/5/trunk/suite.rc    (revision 174521)
++++ b/x/3/1/5/trunk/suite.rc    (revision 175513)
+@@ -77,4 +77,5 @@
+         {% set RESUB_GRAPH = '' %}
+         {% set RESUB_GRAPH = RESUB_GRAPH ~ 'postproc => ' if TASK_POSTPROC else RESUB_GRAPH %}
++        {% set RESUB_GRAPH = RESUB_GRAPH ~ 'tracking:finish => ' %}
+         {% set RESUB_GRAPH = RESUB_GRAPH ~ 'pptransfer => ' if TASK_PPTRANSFER else RESUB_GRAPH %}
+         {% set RESUB_GRAPH = RESUB_GRAPH ~ 'supermean => ' if TASK_SUPERMEAN else RESUB_GRAPH %}
+@@ -204,4 +205,14 @@
+             ROSE_TASK_APP = fcm_make_pp
+ 
++    [[tracking]]
++        inherit = RUN_MAIN, TRACKING_RESOURCE
++        pre-script = """
++            module load scitools
++            module load um_tools
++            module load gcc/7.3.0
++            module load cray-netcdf/4.3.2"""
++        [[[environment]]]
++            ROSE_TASK_APP = tempest_tracker
++
+     [[pptransfer]]
+         inherit = RUN_MAIN, PPTRANSFER_RESOURCE

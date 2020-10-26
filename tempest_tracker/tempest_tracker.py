@@ -6,8 +6,8 @@ import shutil
 import subprocess
 import sys
 
+import cftime
 import iris
-import numpy as np
 
 from afterburner.apps import AbstractApp
 
@@ -45,8 +45,8 @@ class TempestTracker(AbstractApp):
             except PermissionError:
                 msg = (f'Unable to create output directory '
                        f'{self.output_directory}')
-            self.logger.error(msg)
-            sys.exit(1)
+                self.logger.error(msg)
+                sys.exit(1)
 
         self.logger.debug(f'CYLC_TASK_CYCLE_TIME {self.cylc_task_cycle_time}, '
                           f'um_runid {self.um_runid}')
@@ -66,13 +66,14 @@ class TempestTracker(AbstractApp):
         if os.stat(candidatefile).st_size > 0:
             if os.stat(trackedfile).st_size > 0:
                 title = track_type + ' tracks'
-                self.read_and_plot_tracks(
-                    trackedfile, nc_file,
-                    tracking_period,
-                    title=title,
-                    feature_type=track_type,
-                    num_vars_stitch=n_vars_stitch
-                )
+                # self.read_and_plot_tracks(
+                #     trackedfile, nc_file,
+                #     tracking_period,
+                #     title=title,
+                #     feature_type=track_type,
+                #     num_vars_stitch=n_vars_stitch
+                # )
+                self.logger.info('Would now plot')
             else:
                 self.logger.error(f'candidatefile has data but no tracks '
                                   f'{candidatefile}')
@@ -92,7 +93,7 @@ class TempestTracker(AbstractApp):
 
         candidatefile = os.path.join(
             self.output_directory,
-            f'candidate_file_{self.cylc_task_cylc_time}_{tracking_type}.txt'
+            f'candidate_file_{self.cylc_task_cycle_time}_{tracking_type}.txt'
         )
         self.logger.debug(f'candidatefile {candidatefile}')
 
@@ -133,8 +134,8 @@ class TempestTracker(AbstractApp):
         self.logger.debug(f'tc command {cmd_detect}')
 
         sts = subprocess.run(cmd_detect, shell=True, stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE,
-                             universal_newlines=True)
+                             stderr=subprocess.PIPE, universal_newlines=True,
+                             check=True)
         self.logger.debug(sts.stdout)
         if 'EXCEPTION' in sts.stdout:
             msg = (f'EXCEPTION found in TempestExtreme detect output\n'
@@ -155,16 +156,16 @@ class TempestTracker(AbstractApp):
         cmd_stitch = cmd_stitch_io + tracking_phase_commands['stitch']
         self.logger.debug(f'tc command {cmd_stitch}')
         sts = subprocess.run(cmd_stitch, shell=True, stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE,
-                             universal_newlines=True)
-        self.logger.debug(f'sts err {sts.stderr}')
+                             stderr=subprocess.PIPE, universal_newlines=True,
+                             check=True)
+        self.logger.debug(f'sts err {sts.stdout}')
 
+        #TODO does the parameter file need to be written?
         parameter_outfile = os.path.join(
             self.output_directory,
             f"{metadata['model']}_{self.resolution_code}_{tracking_period}_"
             f"parameter_output_{tracking_type}.txt"
         )
-
         self.write_parameter_file(parameter_outfile, cmd_detect, cmd_stitch)
 
         return candidatefile, trackedfile, filenames['pslfile'], tracking_period
@@ -230,18 +231,18 @@ class TempestTracker(AbstractApp):
             containing the period between samples in the input data.
         :rtype: tuple
         """
-        timestamp_day = self.cylc_task_cylc_time[:8]
-        self.logger.debug('time_stamp_day ', timestamp_day)
+        timestamp_day = self.cylc_task_cycle_time[:8]
+        self.logger.debug(f'time_stamp_day {timestamp_day}')
         file_search = os.path.join(
             self.input_directory,
             f'atmos_{self.um_runid}*{timestamp_day}??-*-slp.nc')
-        self.logger.debug('file_search {file_search}')
+        self.logger.debug(f'file_search {file_search}')
         files = sorted(glob.glob(file_search))
-        self.logger.debug('files {files}')
+        self.logger.debug(f'files {files}')
         if not files:
             msg = f'No input files found for glob pattern {file_search}'
             self.logger.error(msg)
-            raise ValueError(msg)
+            raise RuntimeError(msg)
 
         periods = []
         for filename in files:
@@ -251,11 +252,11 @@ class TempestTracker(AbstractApp):
         if len(unique_periods) == 0:
             msg = 'No tracked_file periods found'
             self.logger.error(msg)
-            raise ValueError(msg)
+            raise RuntimeError(msg)
         elif len(unique_periods) != 1:
             msg = 'No tracked_file periods found'
             self.logger.error(msg)
-            raise ValueError(msg)
+            raise RuntimeError(msg)
         else:
             period = periods[0]
 
@@ -273,7 +274,7 @@ class TempestTracker(AbstractApp):
         :rtype: dict
         """
         # Things to think about:
-        #    when using levels of a variable (e.g. zg_available), how to make
+        #    when using levels of a variable (e.g. zg), how to make
         #    sure that the (0), (1) etc indices in the calculations refer to
         #    the right levels?
         filetypes_required = ['pslfile', 'zgfile', 'ufile', 'vfile',
@@ -288,9 +289,9 @@ class TempestTracker(AbstractApp):
         variables_required = {}
         variables_required['pslfile'] = {'fname': 'slp',
                                          'varname': self.psl_std_name}
-        variables_required['zgfile'] = {'fname': 'zg_available',
+        variables_required['zgfile'] = {'fname': 'zg',
                                         'varname': 'unknown',
-                                        'varname_new': 'zg_available'}
+                                        'varname_new': 'zg'}
         variables_required['ufile'] = {'fname': 'ua',
                                        'varname': 'x_wind'}
         variables_required['vfile'] = {'fname': 'va',
@@ -332,7 +333,7 @@ class TempestTracker(AbstractApp):
             if not os.path.exists(input_path):
                 msg = f'Unable to find expected input file {input_path}'
                 self.logger.error(msg)
-                raise ValueError(msg)
+                raise RuntimeError(msg)
 
             output_path = os.path.join(self.output_directory, filename)
 
@@ -354,7 +355,7 @@ class TempestTracker(AbstractApp):
                                                             ['varname_new'])
                 iris.save(regridded, output_path)
             elif (variables_required[filetype]['fname'] in
-                  ['ta', 'zg_available']):
+                  ['ta', 'zg']):
                 # rename variables only - could do with ncrename instead
                 cube = iris.load_cube(input_path)
                 if 'varname_new' in variables_required[filetype]:
@@ -386,12 +387,12 @@ class TempestTracker(AbstractApp):
         #TODO: where does this six come from?
         num_vars = num_vars_stitch + 6
 
-        cube = iris.load_cube(nc_file)
         # Load trajectories into prodata (nVar,numtraj,maxLines)
         numtraj, numtraj_nh, numtraj_sh, storms = self.get_trajectories(
-            trackedfile, num_vars, num_vars_stitch, cube)
+            trackedfile, num_vars, num_vars_stitch, nc_file)
 
         # plot_trajectories_basemap(numtraj, prodata)
+        prodata = None
         self.plot_trajectories_cartopy(numtraj, prodata, trackedfile,
                                   tracking_period, self.um_runid, self.resolution_code, storms,
                                   title=title, feature_type=feature_type)
@@ -411,7 +412,7 @@ class TempestTracker(AbstractApp):
             fh.write('stitch cmd ' + cmd_stitch + nl)
 
     def get_trajectories(self, tracked_file, num_vars, nVars_stitch,
-                         cube):
+                         nc_file):
         """
         Get the trajectories from the tracked output.
         """
@@ -458,11 +459,11 @@ class TempestTracker(AbstractApp):
                         day = line_array[coords['day']]
                         hour = line_array[coords['hour']]
                         step = self.convert_date_to_step(
-                            cube,
                             int(year),
                             int(month),
                             int(day),
-                            int(hour)
+                            int(hour),
+                            nc_file
                         )
                         # now check if there is a gap in the traj, if so fill it in
                         if line_of_traj > 0:
@@ -506,8 +507,34 @@ class TempestTracker(AbstractApp):
                                   resol, storms, feature_type='TC', title=''):
         pass
 
-    def convert_date_to_step(self, cube, year, month, day, hour):
-        return None
+    def convert_date_to_step(self, year, month, day, hour, netcdf_path):
+        """
+        Calculcate the next step, i.e. step+1, so normalise the time to get
+        the next integer.
+
+        :param int year:
+        :param int month:
+        :param int day:
+        :param int hour:
+        :param str netcdf_path: The path to a netCDF data file containing
+            example time units.
+        """
+        cube = iris.load_cube(netcdf_path)
+        calendar = cube.coord('time').units.calendar
+        time_unit = cube.coord('time').units
+        current_datetime = cftime.datetime(year, month, day, hour,
+                                           calendar=calendar)
+        dt_point = cftime.date2num(current_datetime, time_unit, calendar)
+        delta = dt_point - cube.coord('time').points[0]
+
+        #TODO what is the step size? This assumes 6h currently
+
+        if 'hours' in str(time_unit):
+            return int(delta / 6) + 1
+        elif 'days' in str(time_unit):
+            return int(delta * 4) + 1
+        elif 'minutes' in str(time_unit):
+            return int(delta / (60 * 6)) + 1
 
     def fill_traj_gap(self, storm, step, lon, lat, year, month, day, hour):
         """

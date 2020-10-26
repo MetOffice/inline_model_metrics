@@ -21,7 +21,6 @@ class TestTempestTracker(unittest.TestCase):
         os.environ['CYLC_TASK_CYCLE_TIME'] = '20000101T0000Z'
         self.basic_app_config = """
         [common]
-        command_path=/home/d05/hadom/tempestextremes-master/bin
         resolution=N96
         input_directory=${DATAM}
         output_directory=${DATAM}/tempest_tracking

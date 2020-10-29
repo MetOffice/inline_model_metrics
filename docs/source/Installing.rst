@@ -10,4 +10,5 @@ Then perform the following steps:
 #. Checkout the code
 #. Copy the Rose app directory into your Rose suite:
 `cp -r rose-suite/app/tempest_tracker ~/roses/<suite-id>/app/`
-#. Add the code to the PYTHONPATH in `rose-app.conf`
+#. Modify `suite.rc` to add the changes shown in `rose-suite/suite_rc.diff`.
+#. Add the path to the code to the `PYTHONPATH` in `rose-app.conf`

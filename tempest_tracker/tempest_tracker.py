@@ -66,14 +66,14 @@ class TempestTracker(AbstractApp):
         if os.stat(candidatefile).st_size > 0:
             if os.stat(trackedfile).st_size > 0:
                 title = track_type + ' tracks'
-                # self.read_and_plot_tracks(
-                #     trackedfile, nc_file,
-                #     tracking_period,
-                #     title=title,
-                #     feature_type=track_type,
-                #     num_vars_stitch=n_vars_stitch
-                # )
-                self.logger.info('Would now plot')
+                if self.plot_tracks:
+                    self.read_and_plot_tracks(
+                        trackedfile, nc_file,
+                        tracking_period,
+                        title=title,
+                        feature_type=track_type,
+                        num_vars_stitch=n_vars_stitch
+                    )
             else:
                 self.logger.error(f'candidatefile has data but no tracks '
                                   f'{candidatefile}')
@@ -592,6 +592,8 @@ class TempestTracker(AbstractApp):
                                                            'orography_file')
         self.extend_files = self.app_config.get_bool_property('common',
                                                               'extend_files')
+        self.plot_tracks = self.app_config.get_bool_property('common',
+                                                             'plot_tracks')
 
     def _get_environment_variables(self):
         """

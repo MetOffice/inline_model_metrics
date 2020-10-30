@@ -6,10 +6,11 @@ import shutil
 import subprocess
 import sys
 
-import cftime
 import iris
 
 from afterburner.apps import AbstractApp
+
+from tempest_helper import get_trajectories, plot_trajectories_cartopy
 
 
 class TempestTracker(AbstractApp):
@@ -71,7 +72,6 @@ class TempestTracker(AbstractApp):
                         trackedfile, nc_file,
                         tracking_period,
                         title=title,
-                        feature_type=track_type,
                         num_vars_stitch=n_vars_stitch
                     )
             else:
@@ -84,8 +84,12 @@ class TempestTracker(AbstractApp):
         """
         Run the tracking.
 
-        :param dict metadata: The collection of metadata
-        :param str tracking_type: The type of tracking to run
+        :param dict metadata: The collection of metadata.
+        :param str tracking_type: The type of tracking to run.
+        :returns: The path to the candidate file, the path to the tracked file,
+            the path of the sea level pressure input netCDF file and the period
+            between time points in the input file, all as strings.
+        :rtype: tuple
         """
         self.logger.error(f'cwd {os.getcwd()}')
 
@@ -372,8 +376,7 @@ class TempestTracker(AbstractApp):
         return processed_filenames
 
     def read_and_plot_tracks(self, trackedfile, nc_file, tracking_period,
-                             title='', feature_type='TC',
-                             num_vars_stitch=4):
+                             title='', num_vars_stitch=4):
         """
         Read and plot the tracks
 
@@ -384,18 +387,14 @@ class TempestTracker(AbstractApp):
         :param str feature_type: The type of tracking.
         :param int num_vars_stitch: The number of variables to stitch together.
         """
-        #TODO: where does this six come from?
-        num_vars = num_vars_stitch + 6
+        numtraj, numtraj_nh, numtraj_sh, storms = get_trajectories(
+            trackedfile, num_vars_stitch, nc_file)
 
-        # Load trajectories into prodata (nVar,numtraj,maxLines)
-        numtraj, numtraj_nh, numtraj_sh, storms = self.get_trajectories(
-            trackedfile, num_vars, num_vars_stitch, nc_file)
-
-        # plot_trajectories_basemap(numtraj, prodata)
-        prodata = None
-        self.plot_trajectories_cartopy(numtraj, prodata, trackedfile,
-                                  tracking_period, self.um_runid, self.resolution_code, storms,
-                                  title=title, feature_type=feature_type)
+        title_suffix = title if title else "TempestExtremes TCs"
+        title_full = (f"{self.um_runid} {self.resolution_code} "
+                      f"{tracking_period} {numtraj} {title_suffix}")
+        filename = trackedfile[:-4]+'.png'
+        plot_trajectories_cartopy(storms, filename, title=title_full)
 
     def write_parameter_file(self, outfile, cmd_detect, cmd_stitch):
         """
@@ -410,168 +409,6 @@ class TempestTracker(AbstractApp):
             fh.write('detect cmd ' + cmd_detect + nl)
             fh.write(nl)
             fh.write('stitch cmd ' + cmd_stitch + nl)
-
-    def get_trajectories(self, tracked_file, num_vars, nVars_stitch,
-                         nc_file):
-        """
-        Get the trajectories from the tracked output.
-        """
-        self.logger.debug(f'Running getTrajectories on {tracked_file}')
-
-        header_delim = 'start'
-
-        self.logger.debug(f'nVars set to {num_vars} and headerDelimStr set to {header_delim}')
-
-        #TODO why - 2 + 1?
-        nVars_offset = nVars_stitch - 2 + 1
-
-        coords = {
-            'lon': 2,
-            'lat': 3,
-            'year': 3 + nVars_offset,
-            'month': 3 + nVars_offset + 1,
-            'day': 3 + nVars_offset + 2,
-            'hour': 3 + nVars_offset + 3
-        }
-
-        # Initialize storms and line counter
-        storms = []
-        line_of_traj = None
-
-        with open(tracked_file) as file_handle:
-            for line in file_handle:
-                line_array = line.split()
-                if header_delim in line:  # check if header string is satisfied
-                    line_of_traj = 0  # reset trajectory line to zero
-                    track_length = int(line_array[1])
-                    storm = {}
-                    storms.append(storm)
-                    storm['length'] = track_length
-                    for coord in coords:
-                        storm[coord] = []
-                    storm['step'] = []
-                else:
-                    if line_of_traj <= track_length:
-                        lon = line_array[coords['lon']]
-                        lat = line_array[coords['lat']]
-                        year = line_array[coords['year']]
-                        month = line_array[coords['month']]
-                        day = line_array[coords['day']]
-                        hour = line_array[coords['hour']]
-                        step = self.convert_date_to_step(
-                            int(year),
-                            int(month),
-                            int(day),
-                            int(hour),
-                            nc_file
-                        )
-                        # now check if there is a gap in the traj, if so fill it in
-                        if line_of_traj > 0:
-                            # print ('gap in traj ',track_length, year, month, day, hour, step, storm[storm_id]['step'][-1])
-                            # print ('cube ',cube)
-                            if (step - storm['step'][-1]) > 1:
-                                # add extra points before the next one in the TempExt trajectory
-                                self.fill_traj_gap(storm, step, lon, lat, year,
-                                              month, day, hour)
-                        for coord in coords:
-                            storm[coord].append(line_array[coords[coord]])
-                        storm['step'].append(step)
-                    line_of_traj += 1  # increment line
-
-        # Find total number of trajectories and maximum length of trajectories
-        trajectories_found = len(storms)
-        self.logger.debug(f'Found {trajectories_found} trajectories')
-
-        trajectories_found_northern_hemisphere = 0
-        trajectories_found_southern_hemisphere = 0
-        for storm in storms:
-            lat = float(storm['lat'][0])
-            if lat < 0.0:
-                trajectories_found_southern_hemisphere += 1
-            else:
-                trajectories_found_northern_hemisphere += 1
-
-        self.logger.debug(f'trajectories_found tota, nh, sh '
-                          f'{trajectories_found} '
-                          f'{trajectories_found_northern_hemisphere} '
-                          f'{trajectories_found_southern_hemisphere}')
-
-        return (
-            trajectories_found,
-            trajectories_found_northern_hemisphere,
-            trajectories_found_southern_hemisphere,
-            storms
-        )
-
-    def plot_trajectories_cartopy(self, numtraj, prodata, trajfile, period, model,
-                                  resol, storms, feature_type='TC', title=''):
-        pass
-
-    def convert_date_to_step(self, year, month, day, hour, netcdf_path):
-        """
-        Calculcate the next step, i.e. step+1, so normalise the time to get
-        the next integer.
-
-        :param int year:
-        :param int month:
-        :param int day:
-        :param int hour:
-        :param str netcdf_path: The path to a netCDF data file containing
-            example time units.
-        """
-        cube = iris.load_cube(netcdf_path)
-        calendar = cube.coord('time').units.calendar
-        time_unit = cube.coord('time').units
-        current_datetime = cftime.datetime(year, month, day, hour,
-                                           calendar=calendar)
-        dt_point = cftime.date2num(current_datetime, time_unit, calendar)
-        delta = dt_point - cube.coord('time').points[0]
-
-        #TODO what is the step size? This assumes 6h currently
-
-        if 'hours' in str(time_unit):
-            return int(delta / 6) + 1
-        elif 'days' in str(time_unit):
-            return int(delta * 4) + 1
-        elif 'minutes' in str(time_unit):
-            return int(delta / (60 * 6)) + 1
-
-    def fill_traj_gap(self, storm, step, lon, lat, year, month, day, hour):
-        """
-        Fill the gap by linearly interpolating the lon, lat and adding steps.
-        The date and time is not interpolated and the end time is inserted
-        for the interpolated steps. Longitudes and their interpolation may wrap
-        around the 0/360 degree numerical discontinuity. The longitudes output
-        are between 0 and 359 degrees.
-
-        :param dict storm: Details of the current storm.
-        :param int step: The integer number of time points of the current
-            point since the time unit's epoch.
-        :param str lon: The longitude of the current point in the storm in
-            degrees.
-        :param str lat: The latitude of the current point in the storm in
-            degrees.
-        :param str year: Year of the current time point.
-        :param str month: Month of the current time point.
-        :param str day: Day of the current time point.
-        :param str hour: Hour of the current time point.
-        """
-        gap_length = step - storm['step'][-1]
-        # Using technique at https://stackoverflow.com/a/14498790 to handle
-        # longitudes wrapping around 0/360
-        dlon = ((((float(lon) - float(storm['lon'][-1])) + 180) % 360 - 180) /
-                gap_length)
-        dlat = (float(lat) - float(storm['lat'][-1])) / gap_length
-        for gap_index in range(1, gap_length):
-            lon1 = (float(storm['lon'][-1]) + dlon) % 360
-            lat1 = float(storm['lat'][-1]) + dlat
-            storm['lon'].append(str(lon1))
-            storm['lat'].append(str(lat1))
-            storm['step'].append(storm['step'][-1] + 1)
-            storm['year'].append(year)
-            storm['month'].append(month)
-            storm['day'].append(day)
-            storm['hour'].append(hour)
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""

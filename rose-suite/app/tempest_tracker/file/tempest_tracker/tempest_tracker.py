@@ -2,6 +2,7 @@
 # Please see LICENSE for license details.
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -55,9 +56,8 @@ class TempestTracker(AbstractApp):
         metadata = self._collect_metadata(True)
 
         # Run the tracking
-        candidatefile, trackedfile, nc_file, tracking_period = self._run_tracking(
-            metadata
-        )
+        (candidatefile, trackedfile, nc_file,
+         tracking_period, frequency) = self._run_tracking(metadata)
 
         # Run the plotting (if required)
         if os.stat(candidatefile).st_size > 0:
@@ -67,6 +67,7 @@ class TempestTracker(AbstractApp):
                     self._read_and_plot_tracks(
                         trackedfile, nc_file,
                         tracking_period,
+                        frequency,
                         title=title
                     )
             else:
@@ -82,12 +83,13 @@ class TempestTracker(AbstractApp):
         :param dict metadata: The collection of metadata.
         :returns: The path to the candidate file, the path to the tracked file,
             the path of the sea level pressure input netCDF file and the period
-            between time points in the input file, all as strings.
+            between time points in the input file, all as strings and the
+            frequency of time points in the file in hours as an integer.
         :rtype: tuple
         """
         self.logger.error(f'cwd {os.getcwd()}')
 
-        filenames, tracking_period = self._generate_data_files()
+        filenames, tracking_period, frequency = self._generate_data_files()
 
         candidatefile = os.path.join(
             self.output_directory,
@@ -95,7 +97,7 @@ class TempestTracker(AbstractApp):
         )
         self.logger.debug(f'candidatefile {candidatefile}')
 
-        if not self.extend_files:
+        if not self.extended_files:
             # identify candidates
             cmd_io = '{} --in_data "{};{};{};{};{}" --out {} '.format(
                 self.tc_detect_script,
@@ -106,7 +108,6 @@ class TempestTracker(AbstractApp):
                 filenames['topofile'],
                 candidatefile)
         else:
-            # TODO add better description for extend files in the metadata
             cmd_io = ('{} --in_data "{};{};{};{};{};{};{};{};{};{};{};{};{}" '
                       '--out {} '.format(
                 self.tc_detect_script,
@@ -128,7 +129,7 @@ class TempestTracker(AbstractApp):
 
         tracking_phase_commands = self._construct_command()
         cmd_detect = cmd_io + tracking_phase_commands['detect']
-        self.logger.debug(f'tc command {cmd_detect}')
+        self.logger.info(f'Detect command {cmd_detect}')
 
         sts = subprocess.run(cmd_detect, shell=True, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, universal_newlines=True,
@@ -151,21 +152,14 @@ class TempestTracker(AbstractApp):
             trackedfile
         )
         cmd_stitch = cmd_stitch_io + tracking_phase_commands['stitch']
-        self.logger.debug(f'tc command {cmd_stitch}')
+        self.logger.info(f'Stitch command {cmd_stitch}')
         sts = subprocess.run(cmd_stitch, shell=True, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, universal_newlines=True,
                              check=True)
         self.logger.debug(f'sts err {sts.stdout}')
 
-        # TODO does the parameter file need to be written?
-        parameter_outfile = os.path.join(
-            self.output_directory,
-            f"{metadata['model']}_{self.resolution_code}_{tracking_period}_"
-            f"parameter_output_{self.track_type}.txt"
-        )
-        self._write_parameter_file(parameter_outfile, cmd_detect, cmd_stitch)
-
-        return candidatefile, trackedfile, filenames['pslfile'], tracking_period
+        return (candidatefile, trackedfile, filenames['pslfile'],
+                tracking_period, frequency)
 
     def _collect_metadata(self, zg_available=False):
         """
@@ -218,8 +212,10 @@ class TempestTracker(AbstractApp):
         """
         Identify and then fix the grids and var_names in the input files.
 
-        :returns: A dictionary of the files found for this period and a string
-            containing the period between samples in the input data.
+        :returns: A tuple of a dictionary of the files found for this period,
+            a string containing the  start and end timestrings that the
+            tracking was run over and the integer frequency in hours between
+            time points.
         :rtype: tuple
         """
         timestamp_day = self.cylc_task_cycle_time[:8]
@@ -236,10 +232,14 @@ class TempestTracker(AbstractApp):
             raise RuntimeError(msg)
 
         periods = []
+        frequencies = []
         for filename in files:
             period = os.path.basename(filename).split('_')[3]
+            frequency = os.path.basename(filename).split('_')[2]
             periods.append(period)
+            frequencies.append(frequency)
             unique_periods = list(set(periods))
+            unique_frequencies = list(set(frequencies))
         if len(unique_periods) == 0:
             msg = 'No tracked_file periods found'
             self.logger.error(msg)
@@ -249,11 +249,28 @@ class TempestTracker(AbstractApp):
             self.logger.error(msg)
             raise RuntimeError(msg)
         else:
-            period = periods[0]
+            period = unique_periods[0]
+        if len(unique_frequencies) == 0:
+            msg = 'No tracked_file frequencies found'
+            self.logger.error(msg)
+            raise RuntimeError(msg)
+        elif len(unique_frequencies) != 1:
+            msg = 'No tracked_file frequencies found'
+            self.logger.error(msg)
+            raise RuntimeError(msg)
+        else:
+            frequency = unique_frequencies[0]
+            components = re.match(r'(\d+)', frequency)
+            if not components:
+                msg = r'No digit found in frequency {frequency}'
+                self.logger.error(msg)
+                raise ValueError(msg)
+            else:
+                frequency_value = int(components[1])
 
         filenames = self._process_input_files(period)
 
-        return filenames, period
+        return filenames, period, frequency_value
 
     def _process_input_files(self, period):
         """
@@ -343,7 +360,7 @@ class TempestTracker(AbstractApp):
         return processed_filenames
 
     def _read_and_plot_tracks(self, trackedfile, nc_file, tracking_period,
-                              title=''):
+                              frequency, title=''):
         """
         Read and then plot the tracks
 
@@ -352,9 +369,10 @@ class TempestTracker(AbstractApp):
             used to gatehr additional information about the dates and calendars
             used in the data.
         :param str tracking_period: The model output period.
+        :param int frequency: The time in hours between data points.
         :param str title: The title for the plot.
         """
-        storms = get_trajectories(trackedfile, nc_file, int(tracking_period))
+        storms = get_trajectories(trackedfile, nc_file, frequency)
         num_trajectories = count_trajectories(storms)
 
         title_suffix = title if title else "TempestExtremes TCs"
@@ -362,20 +380,6 @@ class TempestTracker(AbstractApp):
                       f"{tracking_period} {num_trajectories} {title_suffix}")
         filename = trackedfile[:-4]+'.png'
         plot_trajectories_cartopy(storms, filename, title=title_full)
-
-    def _write_parameter_file(self, outfile, cmd_detect, cmd_stitch):
-        """
-        Write the parameter file
-
-        :param str outfile: The path of the file to write to
-        :param str cmd_detect: The detection command
-        :param str cmd_stitch: The stitch command
-        """
-        nl = '\n'
-        with open(outfile, 'w') as fh:
-            fh.write('detect cmd ' + cmd_detect + nl)
-            fh.write(nl)
-            fh.write('stitch cmd ' + cmd_stitch + nl)
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""
@@ -394,8 +398,8 @@ class TempestTracker(AbstractApp):
                                                          'psl_std_name')
         self.orography_file = self.app_config.get_property('common',
                                                            'orography_file')
-        self.extend_files = self.app_config.get_bool_property('common',
-                                                              'extend_files')
+        self.extended_files = self.app_config.get_bool_property('common',
+                                                                'extended_files')
         self.plot_tracks = self.app_config.get_bool_property('common',
                                                              'plot_tracks')
         self.track_type = self.app_config.get_property('common', 'track_type')

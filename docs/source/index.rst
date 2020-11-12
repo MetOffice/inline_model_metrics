@@ -13,6 +13,7 @@ A tenten project Rose app to run TempestExtremes inline with a climate model.
    :caption: Contents:
 
    Installing
+   Developing
    Interface
    License
 

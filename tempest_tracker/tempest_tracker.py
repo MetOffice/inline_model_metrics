@@ -10,7 +10,8 @@ import iris
 
 from afterburner.apps import AbstractApp
 
-from tempest_helper import get_trajectories, plot_trajectories_cartopy
+from tempest_helper import (count_trajectories, get_trajectories,
+                            plot_trajectories_cartopy)
 
 
 class TempestTracker(AbstractApp):
@@ -51,28 +52,22 @@ class TempestTracker(AbstractApp):
 
         self.logger.debug(f'CYLC_TASK_CYCLE_TIME {self.cylc_task_cycle_time}, '
                           f'um_runid {self.um_runid}')
-        metadata = self.collect_metadata(True)
+        metadata = self._collect_metadata(True)
 
-        # TODO please define
-        n_vars_stitch = 6 # lon, lat, psl, topo
-
-        # TODO Move to config
-        track_type = 'tc_slp'
-
-        candidatefile, trackedfile, nc_file, tracking_period = self.run_tracking(
-            metadata,
-            tracking_type=track_type
+        # Run the tracking
+        candidatefile, trackedfile, nc_file, tracking_period = self._run_tracking(
+            metadata
         )
 
+        # Run the plotting (if required)
         if os.stat(candidatefile).st_size > 0:
             if os.stat(trackedfile).st_size > 0:
-                title = track_type + ' tracks'
+                title = self.track_type + ' tracks'
                 if self.plot_tracks:
-                    self.read_and_plot_tracks(
+                    self._read_and_plot_tracks(
                         trackedfile, nc_file,
                         tracking_period,
-                        title=title,
-                        num_vars_stitch=n_vars_stitch
+                        title=title
                     )
             else:
                 self.logger.error(f'candidatefile has data but no tracks '
@@ -80,12 +75,11 @@ class TempestTracker(AbstractApp):
         else:
             self.logger.error(f'candidatefile is empty {candidatefile}')
 
-    def run_tracking(self, metadata, tracking_type='tc_slp'):
+    def _run_tracking(self, metadata):
         """
         Run the tracking.
 
         :param dict metadata: The collection of metadata.
-        :param str tracking_type: The type of tracking to run.
         :returns: The path to the candidate file, the path to the tracked file,
             the path of the sea level pressure input netCDF file and the period
             between time points in the input file, all as strings.
@@ -93,14 +87,13 @@ class TempestTracker(AbstractApp):
         """
         self.logger.error(f'cwd {os.getcwd()}')
 
-        filenames, tracking_period = self.generate_data_files()
+        filenames, tracking_period = self._generate_data_files()
 
         candidatefile = os.path.join(
             self.output_directory,
-            f'candidate_file_{self.cylc_task_cycle_time}_{tracking_type}.txt'
+            f'candidate_file_{self.cylc_task_cycle_time}_{self.track_type}.txt'
         )
         self.logger.debug(f'candidatefile {candidatefile}')
-
 
         if not self.extend_files:
             # identify candidates
@@ -113,7 +106,7 @@ class TempestTracker(AbstractApp):
                 filenames['topofile'],
                 candidatefile)
         else:
-            #TODO add better description for extend files in the metadata
+            # TODO add better description for extend files in the metadata
             cmd_io = ('{} --in_data "{};{};{};{};{};{};{};{};{};{};{};{};{}" '
                       '--out {} '.format(
                 self.tc_detect_script,
@@ -133,7 +126,7 @@ class TempestTracker(AbstractApp):
                 candidatefile)
             )
 
-        tracking_phase_commands = self.construct_command(tracking_type)
+        tracking_phase_commands = self._construct_command()
         cmd_detect = cmd_io + tracking_phase_commands['detect']
         self.logger.debug(f'tc command {cmd_detect}')
 
@@ -148,7 +141,7 @@ class TempestTracker(AbstractApp):
 
         trackedfile = os.path.join(
             self.output_directory,
-            f'track_file_{tracking_period}_{tracking_type}.txt'
+            f'track_file_{tracking_period}_{self.track_type}.txt'
         )
 
         # stitch candidates together
@@ -164,17 +157,17 @@ class TempestTracker(AbstractApp):
                              check=True)
         self.logger.debug(f'sts err {sts.stdout}')
 
-        #TODO does the parameter file need to be written?
+        # TODO does the parameter file need to be written?
         parameter_outfile = os.path.join(
             self.output_directory,
             f"{metadata['model']}_{self.resolution_code}_{tracking_period}_"
-            f"parameter_output_{tracking_type}.txt"
+            f"parameter_output_{self.track_type}.txt"
         )
-        self.write_parameter_file(parameter_outfile, cmd_detect, cmd_stitch)
+        self._write_parameter_file(parameter_outfile, cmd_detect, cmd_stitch)
 
         return candidatefile, trackedfile, filenames['pslfile'], tracking_period
 
-    def collect_metadata(self, zg_available=False):
+    def _collect_metadata(self, zg_available=False):
         """
         Collect metadata into a single dictionary.
 
@@ -198,27 +191,21 @@ class TempestTracker(AbstractApp):
         metadata['topo_var'] = 'surface_altitude'
         return metadata
 
-    def construct_command(self, tracking_type):
+    def _construct_command(self):
         """
         Read the TempestExtreme command line parameters from the configuration.
 
-        :param str tracking_type: The name of the type of tracking that will
-            be performed.
         :returns: A dictionary with keys of `detect` and `stitch` and the
             values for each of these is a string containing the command
             line parameters for each of these TempestExtreme steps. The
             parameters are sorted into alphabetical order in each line.
         :rtype: dict
         """
-        # TODO latname and loname aren't in
-        #  https://climate.ucdavis.edu/tempestextremes.php#DetectNodes
-
-        # TODO in stitch threshold or thresholdcmd?
 
         commands = {}
         for step in ['detect', 'stitch']:
             step_config = self.app_config.section_to_dict(
-                f'{tracking_type}_{step}'
+                f'{self.track_type}_{step}'
             )
 
             step_arguments = [f'--{parameter} {step_config[parameter]}'
@@ -227,7 +214,7 @@ class TempestTracker(AbstractApp):
             commands[step] = ' '.join(step_arguments)
         return commands
 
-    def generate_data_files(self):
+    def _generate_data_files(self):
         """
         Identify and then fix the grids and var_names in the input files.
 
@@ -277,10 +264,6 @@ class TempestTracker(AbstractApp):
             containing the period between samples in the input data.
         :rtype: dict
         """
-        # Things to think about:
-        #    when using levels of a variable (e.g. zg), how to make
-        #    sure that the (0), (1) etc indices in the calculations refer to
-        #    the right levels?
         filetypes_required = ['pslfile', 'zgfile', 'ufile', 'vfile',
                               'ws10mfile', 'rvfile', 'rvT63file', 'u10mfile',
                               'u10mfile', 'v10mfile', 'viwvefile', 'viwvnfile',
@@ -289,41 +272,25 @@ class TempestTracker(AbstractApp):
 
         processed_filenames['topofile'] = self.orography_file
 
-        #TODO: I don't think that varname is ever used
         variables_required = {}
-        variables_required['pslfile'] = {'fname': 'slp',
-                                         'varname': self.psl_std_name}
-        variables_required['zgfile'] = {'fname': 'zg',
-                                        'varname': 'unknown',
-                                        'varname_new': 'zg'}
-        variables_required['ufile'] = {'fname': 'ua',
-                                       'varname': 'x_wind'}
-        variables_required['vfile'] = {'fname': 'va',
-                                       'varname': 'y_wind'}
-        variables_required['ws10mfile'] = {'fname': 'wsas',
-                                           'varname': 'wind_speed'}
-        variables_required['rvfile'] = {'fname': 'rv',
-                                        'varname': 'unknown',
-                                        'varname_new': 'rv'}
+        variables_required['pslfile'] = {'fname': 'slp'}
+        variables_required['zgfile'] = {'fname': 'zg', 'varname_new': 'zg'}
+        variables_required['ufile'] = {'fname': 'ua'}
+        variables_required['vfile'] = {'fname': 'va'}
+        variables_required['ws10mfile'] = {'fname': 'wsas'}
+        variables_required['rvfile'] = {'fname': 'rv', 'varname_new': 'rv'}
         variables_required['rvT63file'] = {'fname': 'rvT63',
-                                           'varname': 'unknown',
                                            'varname_new': 'rvT63'}
-        variables_required['u10mfile'] = {'fname': 'u10m',
-                                          'varname': 'x_wind',
-                                          'varname_new': 'uas'}
-        variables_required['v10mfile'] = {'fname': 'v10m',
-                                          'varname': 'y_wind',
-                                          'varname_new': 'vas'}
+        variables_required['u10mfile'] = {'fname': 'u10m', 'varname_new': 'uas'}
+        variables_required['v10mfile'] = {'fname': 'v10m', 'varname_new': 'vas'}
         variables_required['viwvefile'] = {'fname': 'viwve',
-                                           'varname': 'unknown',
                                            'varname_new': 'viwve'}
         variables_required['viwvnfile'] = {'fname': 'viwvn',
-                                           'varname': 'unknown',
                                            'varname_new': 'viwvn'}
         variables_required['tafile'] = {'fname': 'ta',
-                                        'varname': 'unknown',
                                         'varname_new': 'ta'}
 
+        # TODO add names of files generated (and required) to documentation
         filename_format = 'atmos_{}a_6h_{}_pt-{}.nc'
 
         for filetype in filetypes_required:
@@ -375,28 +342,28 @@ class TempestTracker(AbstractApp):
 
         return processed_filenames
 
-    def read_and_plot_tracks(self, trackedfile, nc_file, tracking_period,
-                             title='', num_vars_stitch=4):
+    def _read_and_plot_tracks(self, trackedfile, nc_file, tracking_period,
+                              title=''):
         """
-        Read and plot the tracks
+        Read and then plot the tracks
 
-        :param str trackedfile:
-        :param str nc_file:
+        :param str trackedfile: The path to the track file.
+        :param str nc_file: The path to an input data netCDF file, which is
+            used to gatehr additional information about the dates and calendars
+            used in the data.
         :param str tracking_period: The model output period.
         :param str title: The title for the plot.
-        :param str feature_type: The type of tracking.
-        :param int num_vars_stitch: The number of variables to stitch together.
         """
-        numtraj, numtraj_nh, numtraj_sh, storms = get_trajectories(
-            trackedfile, num_vars_stitch, nc_file)
+        storms = get_trajectories(trackedfile, nc_file, int(tracking_period))
+        num_trajectories = count_trajectories(storms)
 
         title_suffix = title if title else "TempestExtremes TCs"
         title_full = (f"{self.um_runid} {self.resolution_code} "
-                      f"{tracking_period} {numtraj} {title_suffix}")
+                      f"{tracking_period} {num_trajectories} {title_suffix}")
         filename = trackedfile[:-4]+'.png'
         plot_trajectories_cartopy(storms, filename, title=title_full)
 
-    def write_parameter_file(self, outfile, cmd_detect, cmd_stitch):
+    def _write_parameter_file(self, outfile, cmd_detect, cmd_stitch):
         """
         Write the parameter file
 
@@ -431,6 +398,7 @@ class TempestTracker(AbstractApp):
                                                               'extend_files')
         self.plot_tracks = self.app_config.get_bool_property('common',
                                                              'plot_tracks')
+        self.track_type = self.app_config.get_property('common', 'track_type')
 
     def _get_environment_variables(self):
         """

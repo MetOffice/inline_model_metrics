@@ -52,8 +52,11 @@ Intermediate Files
 The input netCDF files require various transformations before TempestExtremes
 can track them. The tracking software performs these transformations and saves
 the resulting files in the output directory. The filename of these generated
-files is currently hardcoded in the software to be in the form
-`atmos_{runid}a_{frequency}h_{time_range}_pt-{variable_name}.nc`. The intermediate
+files is currently hardcoded in the software to be in the form::
+
+   atmos_{runid}a_{frequency}h_{time_range}_pt-{variable_name}.nc
+
+The intermediate
 netCDF files are not currently archived or deleted after the processing has been run.
 
 Output Files

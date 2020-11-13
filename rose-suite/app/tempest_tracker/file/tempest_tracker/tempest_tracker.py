@@ -25,6 +25,10 @@ class TempestTracker(AbstractApp):
         self._parse_app_config()
         self._set_message_level()
 
+        # Instance attributes set later
+        self.time_range = None
+        self.frequency = None
+
     @property
     def cli_spec(self):
         """
@@ -53,21 +57,17 @@ class TempestTracker(AbstractApp):
 
         self.logger.debug(f'CYLC_TASK_CYCLE_TIME {self.cylc_task_cycle_time}, '
                           f'um_runid {self.um_runid}')
-        metadata = self._collect_metadata(True)
 
         # Run the tracking
-        (candidatefile, trackedfile, nc_file,
-         time_range, frequency) = self._run_tracking(metadata)
+        candidatefile, trackedfile, nc_file = self._run_tracking()
 
-        # Run the plotting (if required)
+        # Run the plotting (if required and data available)
         if os.stat(candidatefile).st_size > 0:
             if os.stat(trackedfile).st_size > 0:
                 title = self.track_type + ' tracks'
                 if self.plot_tracks:
                     self._read_and_plot_tracks(
                         trackedfile, nc_file,
-                        time_range,
-                        frequency,
                         title=title
                     )
             else:
@@ -76,20 +76,18 @@ class TempestTracker(AbstractApp):
         else:
             self.logger.error(f'candidatefile is empty {candidatefile}')
 
-    def _run_tracking(self, metadata):
+    def _run_tracking(self):
         """
         Run the tracking.
 
-        :param dict metadata: The collection of metadata.
         :returns: The path to the candidate file, the path to the tracked file,
-            the path of the sea level pressure input netCDF file and the period
-            between time points in the input file, all as strings and the
-            frequency of time points in the file in hours as an integer.
+            the path of the sea level pressure input netCDF file and , all as
+            strings.
         :rtype: tuple
         """
         self.logger.error(f'cwd {os.getcwd()}')
 
-        filenames, time_range, frequency = self._generate_data_files()
+        filenames = self._generate_data_files()
 
         candidatefile = os.path.join(
             self.output_directory,
@@ -106,7 +104,8 @@ class TempestTracker(AbstractApp):
                 filenames['ufile'],
                 filenames['vfile'],
                 filenames['topofile'],
-                candidatefile)
+                candidatefile
+            )
         else:
             cmd_io = ('{} --in_data "{};{};{};{};{};{};{};{};{};{};{};{};{}" '
                       '--out {} '.format(
@@ -124,7 +123,8 @@ class TempestTracker(AbstractApp):
                 filenames['tafile'],
                 filenames['rvT63file'],
                 filenames['topofile'],
-                candidatefile)
+                candidatefile
+            )
             )
 
         tracking_phase_commands = self._construct_command()
@@ -142,7 +142,7 @@ class TempestTracker(AbstractApp):
 
         trackedfile = os.path.join(
             self.output_directory,
-            f'track_file_{time_range}_{self.track_type}.txt'
+            f'track_file_{self.time_range}_{self.track_type}.txt'
         )
 
         # stitch candidates together
@@ -158,32 +158,7 @@ class TempestTracker(AbstractApp):
                              check=True)
         self.logger.debug(f'sts err {sts.stdout}')
 
-        return (candidatefile, trackedfile, filenames['pslfile'],
-                time_range, frequency)
-
-    def _collect_metadata(self, zg_available=False):
-        """
-        Collect metadata into a single dictionary.
-
-        :param bool zg_available: True if the zg (geopotential height) variable
-            is available to use.
-        :returns: The collected metadata in a single dictionary
-        :rtype: dict
-        """
-        metadata = {}
-        metadata['model'] = self.um_runid
-        metadata['resol'] = self.resolution_code
-        metadata['model_name'] = metadata['model']
-        metadata['u_var'] = 'x_wind'
-        metadata['v_var'] = 'y_wind'
-        if not zg_available:
-            metadata['t_var'] = 'ta'
-        else:
-            metadata['t_var'] = 'unknown'
-        metadata['lat_var'] = 'lat'
-        metadata['lon_var'] = 'lon'
-        metadata['topo_var'] = 'surface_altitude'
-        return metadata
+        return candidatefile, trackedfile, filenames['pslfile']
 
     def _construct_command(self):
         """
@@ -212,11 +187,11 @@ class TempestTracker(AbstractApp):
         """
         Identify and then fix the grids and var_names in the input files.
 
-        :returns: A tuple of a dictionary of the files found for this period,
-            a string containing the  start and end timestrings that the
-            tracking was run over and the integer frequency in hours between
-            time points.
-        :rtype: tuple
+        The time_range and frequency attributes are set when this method runs.
+
+        :returns: A dictionary of the files found for this period and a string
+            containing the period between samples in the input data.
+        :rtype: dict
         """
         timestamp_day = self.cylc_task_cycle_time[:8]
         self.logger.debug(f'time_stamp_day {timestamp_day}')
@@ -232,7 +207,9 @@ class TempestTracker(AbstractApp):
             raise RuntimeError(msg)
 
         time_ranges = []
+        unique_ranges = []
         frequencies = []
+        unique_frequencies = []
         for filename in files:
             time_range = os.path.basename(filename).split('_')[3]
             frequency = os.path.basename(filename).split('_')[2]
@@ -249,7 +226,7 @@ class TempestTracker(AbstractApp):
             self.logger.error(msg)
             raise RuntimeError(msg)
         else:
-            time_range = unique_ranges[0]
+            self.time_range = unique_ranges[0]
         if len(unique_frequencies) == 0:
             msg = 'No tracked_file frequencies found'
             self.logger.error(msg)
@@ -266,18 +243,16 @@ class TempestTracker(AbstractApp):
                 self.logger.error(msg)
                 raise ValueError(msg)
             else:
-                frequency_value = int(components[1])
+                self.frequency = int(components[1])
 
-        filenames = self._process_input_files(time_range, frequency_value)
+        filenames = self._process_input_files()
 
-        return filenames, time_range, frequency_value
+        return filenames
 
-    def _process_input_files(self, time_range, frequency):
+    def _process_input_files(self):
         """
         Identify and then fix the grids and var_names in the input files.
 
-        :param str time_range: The time rang of values in the input files.
-        :param int frequency: The time in hours between points in the data.
         :returns: A dictionary of the files found for this period and a string
             containing the period between samples in the input data.
         :rtype: dict
@@ -312,8 +287,8 @@ class TempestTracker(AbstractApp):
 
         reference_name = filename_format.format(
             self.um_runid,
-            frequency,
-            time_range,
+            self.frequency,
+            self.time_range,
             variables_required['pslfile']['fname']
         )
         reference_path = os.path.join(self.input_directory, reference_name)
@@ -321,8 +296,8 @@ class TempestTracker(AbstractApp):
         for filetype in filetypes_required:
             filename = filename_format.format(
                 self.um_runid,
-                frequency,
-                time_range,
+                self.frequency,
+                self.time_range,
                 variables_required[filetype]['fname']
             )
 
@@ -359,25 +334,22 @@ class TempestTracker(AbstractApp):
 
         return processed_filenames
 
-    def _read_and_plot_tracks(self, trackedfile, nc_file, time_range,
-                              frequency, title=''):
+    def _read_and_plot_tracks(self, trackedfile, nc_file, title=''):
         """
         Read and then plot the tracks
 
         :param str trackedfile: The path to the track file.
         :param str nc_file: The path to an input data netCDF file, which is
-            used to gatehr additional information about the dates and calendars
+            used to gather additional information about the dates and calendars
             used in the data.
-        :param str time_range: The model output time range.
-        :param int frequency: The time in hours between data points.
         :param str title: The title for the plot.
         """
-        storms = get_trajectories(trackedfile, nc_file, frequency)
+        storms = get_trajectories(trackedfile, nc_file, self.frequency)
         num_trajectories = count_trajectories(storms)
 
         title_suffix = title if title else "TempestExtremes TCs"
         title_full = (f"{self.um_runid} {self.resolution_code} "
-                      f"{time_range} {num_trajectories} {title_suffix}")
+                      f"{self.time_range} {num_trajectories} {title_suffix}")
         filename = trackedfile[:-4]+'.png'
         plot_trajectories_cartopy(storms, filename, title=title_full)
 
@@ -398,8 +370,10 @@ class TempestTracker(AbstractApp):
                                                          'psl_std_name')
         self.orography_file = self.app_config.get_property('common',
                                                            'orography_file')
-        self.extended_files = self.app_config.get_bool_property('common',
-                                                                'extended_files')
+        self.extended_files = self.app_config.get_bool_property(
+            'common',
+            'extended_files'
+        )
         self.plot_tracks = self.app_config.get_bool_property('common',
                                                              'plot_tracks')
         self.track_type = self.app_config.get_property('common', 'track_type')
@@ -412,4 +386,3 @@ class TempestTracker(AbstractApp):
         """
         self.um_runid = os.environ['RUNID']
         self.cylc_task_cycle_time = os.environ['CYLC_TASK_CYCLE_TIME']
-

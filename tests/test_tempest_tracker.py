@@ -45,48 +45,6 @@ class TestTempestTracker(unittest.TestCase):
         if os.path.isdir(self.runtime_dir):
             shutil.rmtree(self.runtime_dir, ignore_errors=True)
 
-    def test_collect_metadata_with_zg(self):
-        """Test that the metadata dict's populated from the config"""
-        _create_app_config_file(self.cfg_file, self.basic_app_config)
-        args = ['-c', self.cfg_file, '-q']
-        app = TempestTracker(args)
-        app._get_app_options()
-        app._get_environment_variables()
-        metadata = app._collect_metadata(True)
-        expected = {
-            'model': 'ab123',
-            'resol': 'N96',
-            'model_name': 'ab123',
-            'u_var': 'x_wind',
-            'v_var': 'y_wind',
-            't_var': 'unknown',
-            'lat_var': 'lat',
-            'lon_var': 'lon',
-            'topo_var': 'surface_altitude'
-        }
-        self.assertEqual(expected, metadata)
-
-    def test_collect_metadata_without_zg(self):
-        """Test that the metadata dict's populated from the config"""
-        _create_app_config_file(self.cfg_file, self.basic_app_config)
-        args = ['-c', self.cfg_file, '-q']
-        app = TempestTracker(args)
-        app._get_app_options()
-        app._get_environment_variables()
-        metadata = app._collect_metadata(False)
-        expected = {
-            'model': 'ab123',
-            'resol': 'N96',
-            'model_name': 'ab123',
-            'u_var': 'x_wind',
-            'v_var': 'y_wind',
-            't_var': 'ta',
-            'lat_var': 'lat',
-            'lon_var': 'lon',
-            'topo_var': 'surface_altitude'
-        }
-        self.assertEqual(expected, metadata)
-
     def test_construct_command(self):
         """Test that the command dict is created from the config file"""
 

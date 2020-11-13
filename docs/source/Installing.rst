@@ -6,6 +6,7 @@ be run on:
 
 * afterburner (https://code.metoffice.gov.uk/trac/afterburner/)
 * tempest_helper (https://github.com/MetOffice/tempest_helper/)
+* TempestExtremes
 
 Then perform the following steps:
 
@@ -24,5 +25,11 @@ Then perform the following steps:
 #. Ensure that the  `PYTHONPATH` setting in the `app/tempest_tracker/rose-app.conf`
    file in your suite points to your tempest_helper installation on the host that the tracking
    will be run on.
+#. Ensure that the `tc_detect_script` and `tc_stitch_script` settings in the
+   `app/tempest_tracker/rose-app.conf` file in your suite points to your
+   TempestExtremes installation on the host that the tracking will be run on.
+#. Update the `orography_file` setting in the `app/tempest_tracker/rose-app.conf`
+   file to refer to a suitable orography file for this simulation.
+   TempestExtremes installation on the host that the tracking will be run on.
 #. Modify `suite.rc` in your suite to add the changes shown in `rose-suite/suite_rc.diff`.
 

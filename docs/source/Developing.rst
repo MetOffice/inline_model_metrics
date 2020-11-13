@@ -32,10 +32,73 @@ The dangerous way:
    running back to your local copy of https://github.com/MetOffice/tenten_tempestextremes/
    and commit and push the changes.
 
-Running the Tests
+Git workflow
+############
+
+#. Setup your SSH keys (https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/connecting-to-github-with-ssh)
+#. Obtain a local copy of the suite::
+
+      git clone git@github.com:MetOffice/tenten_tempestextremes.git
+
+#. Change directory into the repository::
+
+      cd tenten_tempestextremes
+
+#. If you have previously cloned the repository then update your local copy to
+   the latest version::
+
+      git checkout main
+      git pull origin main
+
+#. Create a branch for your changes and change to this branch::
+
+      git fetch origin
+      git branch <branch-name> origin/main
+      git checkout <branch-name>
+
+#. When you're happy with your changes, check the changes that you've made::
+
+      git status
+      git diff
+
+#. You can then commit these changes and push them back up to GitHub::
+
+      git commit -am '<commit message>'
+      git push origin <branch-name>
+
+#. You can make as many commits and pushes as you want.
+#. Create a pull request at https://github.com/MetOffice/tenten_tempestextremes/compare
+   by in the compare box selecting your branch and clicking on "Create pull request".
+
+#. Once the code has been reviewed then the pull request can be merged using the
+   GitHub web page for that pull request.
+
+#. After merging, change your local copy of the code back to the main branch, delete
+   your local copy of the development branch and pull in the changes from GitHub's
+   main branch to your local copy::
+
+      git checkout main
+      git branch -D  <branch-name>
+      git pull origin main
+
+To examine complex changes, you might also want to consider using graphical diff
+rather than just the command line, in which case you should add the following lines
+to your `~/.gitconfig` file::
+
+   [diff]
+        tool = tkdiff
+   [difftool]
+        prompt = False
+
+and then, rather than just `git diff`, you can use::
+
+   git difftool
+
+
+Running the tests
 #################
 
-#. Load a Python environment in the typical way for your location.
+#. Load a Python environment in the usual way for your location.
 #. Point to the Afterburner installation on your local machine and add this to your
    `PYTHONPATH`::
 
@@ -55,6 +118,20 @@ Running the Tests
 
       pytest -vv
 
+Building the Documentation
+##########################
+
+In the checked out repository, make sure that your Python environment includes
+Sphinx (standard scientific ones do)::
+
+   export PYTHONPATH=/path/to/tenten_tempestextremes/rose-suite/app/tempest_tracker/file
+   cd docs
+   make clean && make html
+
+The build documentation can then be viewed in your browser (replace Firefox
+with the name of your browser if required)::
+
+   firefox build/html/index.html
 
 To add new track types
 ######################

@@ -26,7 +26,7 @@ class TestTempestTracker(unittest.TestCase):
         output_directory=${DATAM}/tempest_tracking
         tc_detect_script=/home/d05/hadom/tempestextremes-master/bin/DetectNodes
         tc_stitch_script=/home/d05/hadom/tempestextremes-master/bin/StitchNodes
-        track_type=tc_slp
+        track_types=['tc_slp']
 
         [tc_slp_detect]
         searchbymin="air_pressure_at_sea_level"
@@ -53,7 +53,7 @@ class TestTempestTracker(unittest.TestCase):
         app = TempestTracker(args)
         app._get_app_options()
         app._get_environment_variables()
-        commands = app._construct_command()
+        commands = app._construct_command("tc_slp")
         expected = {
             "detect": '--closedcontourcmd "air_pressure_at_sea_level,200.0,5.5,'
             '0;_DIFF(zg(0),zg(2)),-6.0,6.5,1.0" '

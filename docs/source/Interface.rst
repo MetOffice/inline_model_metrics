@@ -4,14 +4,16 @@ Interfaces
 Input Files
 ###########
 
-The tracking requires netCDF files. These are currently being produced by direct
-netCDF output from the UM. The following images show how these have been
+The tracking requires netCDF files. These are currently being produced by the UM's
+postproc task. The following images show how these have been
 configured in `rose edit`. Example namelists to add to Rose configuration files
 will be added to this repository in the future.
 
-.. image:: images/netcdf_output_options.png
+.. image:: images/postproc_file-transformation.png
 
-.. image:: images/netcdf_output_streams.png
+.. image:: images/model_output_streams.png
+
+.. image:: images/usage_profile.png
 
 .. image:: images/stash_requests.png
 

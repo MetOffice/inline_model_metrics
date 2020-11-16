@@ -36,7 +36,7 @@ class TestTempestTracker(unittest.TestCase):
         latname="latitude"
         lonname="longitude"
         verbosity=
-        
+
         [tc_slp_stitch]
         min_endpoint_dist=8.0
         """

@@ -94,7 +94,7 @@ class TempestTracker(AbstractApp):
             strings.
         :rtype: tuple
         """
-        self.logger.error(f"cwd {os.getcwd()}")
+        self.logger.debug(f"cwd {os.getcwd()}")
 
         filenames = self._generate_data_files()
 

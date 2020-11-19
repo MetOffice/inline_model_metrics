@@ -1,16 +1,20 @@
 Index: b/x/3/1/5/trunk/suite.rc
 ===================================================================
---- b/x/3/1/5/trunk/suite.rc    (revision 174521)
-+++ b/x/3/1/5/trunk/suite.rc    (revision 175513)
-@@ -77,4 +77,5 @@
-         {% set RESUB_GRAPH = '' %}
-         {% set RESUB_GRAPH = RESUB_GRAPH ~ 'postproc => ' if TASK_POSTPROC else RESUB_GRAPH %}
-+        {% set RESUB_GRAPH = RESUB_GRAPH ~ 'tracking:finish => ' %}
-         {% set RESUB_GRAPH = RESUB_GRAPH ~ 'pptransfer => ' if TASK_PPTRANSFER else RESUB_GRAPH %}
-         {% set RESUB_GRAPH = RESUB_GRAPH ~ 'supermean => ' if TASK_SUPERMEAN else RESUB_GRAPH %}
-@@ -204,4 +205,14 @@
+--- b/x/3/1/5/trunk/suite.rc	(revision 174521)
++++ b/x/3/1/5/trunk/suite.rc	(revision 178017)
+@@ -83,5 +83,8 @@
+
+         [[[ {{EXPT_RESUB}} ]]]
+-            graph = atmos_main => {{ RESUB_GRAPH }}
++            graph = """
++                    atmos_main => {{ RESUB_GRAPH }}
++                    postproc[+{{EXPT_RESUB}}] => tracking
++            """
+
+         {% if TASK_ARCH_WALL %}
+@@ -204,4 +207,14 @@
              ROSE_TASK_APP = fcm_make_pp
- 
+
 +    [[tracking]]
 +        inherit = RUN_MAIN, TRACKING_RESOURCE
 +        pre-script = """

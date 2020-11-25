@@ -37,6 +37,10 @@ The Python code requires the following environment variables to be set:
 +----------------------+------------------------------------------------------+
 | RUNID                | The UM RUNID                                         |
 +----------------------+------------------------------------------------------+
+| TIME_CYCLE           | The UM RUNID                                         |
++----------------------+------------------------------------------------------+
+| PREVIOUS_CYCLE       | The UM RUNID                                         |
++----------------------+------------------------------------------------------+
 
 In the default configuration, the following environment variable is used in
 `rose-app.conf` and needs to be set by the suite (which happens by default in

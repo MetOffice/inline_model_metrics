@@ -24,7 +24,7 @@ class TempestTracker(AbstractApp):
     """
 
     def __init__(self, arglist=None, **kwargs):
-        super(TempestTracker, self).__init__(version="1.0", **kwargs)
+        super().__init__(version="1.0", **kwargs)
         self._parse_args(arglist, desc="Inline TempestExtreme tracking")
         self._parse_app_config()
         self._set_message_level()
@@ -65,10 +65,14 @@ class TempestTracker(AbstractApp):
             f"um_runid {self.um_runid}"
         )
 
-        # Run the tracking
-        candidate_files, tracked_files, nc_file = self._run_tracking()
+        #TODO run the node editor?
 
-        # Run the plotting (if required and data available)
+        # Run the detection and stitching for this time period
+        candidate_files, nc_file = self._run_detection()
+        tracked_files = self._run_stitching(candidate_files)
+
+        # Run the plotting for this time period (if required and
+        # data available)
         for index, track_type in enumerate(self.track_types):
             candidate_file = candidate_files[index]
             tracked_file = tracked_files[index]
@@ -76,6 +80,7 @@ class TempestTracker(AbstractApp):
                 if os.stat(tracked_file).st_size > 0:
                     title = track_type + " tracks"
                     if self.plot_tracks:
+                        self.logger.debug(f'Plotting {os.path.basename(tracked_file)}')
                         self._read_and_plot_tracks(tracked_file, nc_file, title=title)
                 else:
                     self.logger.error(
@@ -85,9 +90,9 @@ class TempestTracker(AbstractApp):
             else:
                 self.logger.error(f"candidate file is empty " f"{candidate_file}")
 
-    def _run_tracking(self):
+    def _run_detection(self):
         """
-        Run the tracking.
+        Run the Tempest detection.
 
         :returns: The path to the candidate file, the path to the tracked file,
             the path of the sea level pressure input netCDF file and , all as
@@ -99,10 +104,9 @@ class TempestTracker(AbstractApp):
         filenames = self._generate_data_files()
 
         candidate_files = []
-        tracked_files = []
 
         for track_type in self.track_types:
-            self.logger.debug(f"Runing {track_type} tracking")
+            self.logger.debug(f"Runing {track_type} detection")
             candidatefile = os.path.join(
                 self.output_directory,
                 f"candidate_file_{self.cylc_task_cycle_time}_{track_type}.txt",
@@ -111,6 +115,7 @@ class TempestTracker(AbstractApp):
 
             if not self.extended_files:
                 # identify candidates
+                #TODO there is a file difference here with the run version
                 cmd_io = '{} --in_data "{};{};{};{};{}" --out {} '.format(
                     self.tc_detect_script,
                     filenames["pslfile"],
@@ -122,20 +127,13 @@ class TempestTracker(AbstractApp):
                 )
             else:
                 cmd_io = (
-                    '{} --in_data "{};{};{};{};{};{};{};{};{};{};{};{};{}" '
+                    '{} --in_data "{};{};{};{};{};{}" '
                     "--out {} ".format(
                         self.tc_detect_script,
                         filenames["pslfile"],
                         filenames["zgfile"],
-                        filenames["ufile"],
-                        filenames["vfile"],
-                        filenames["rvfile"],
                         filenames["u10mfile"],
                         filenames["v10mfile"],
-                        filenames["ws10mfile"],
-                        filenames["viwvefile"],
-                        filenames["viwvnfile"],
-                        filenames["tafile"],
                         filenames["rvT63file"],
                         filenames["topofile"],
                         candidatefile,
@@ -161,9 +159,31 @@ class TempestTracker(AbstractApp):
                 )
                 raise RuntimeError(msg)
 
+            candidate_files.append(candidatefile)
+
+        return candidate_files, filenames["pslfile"]
+
+    def _run_stitching(self, candidate_files):
+        """
+        Run the Tempest stitching.
+
+        :returns: The path to the candidate file, the path to the tracked file,
+            the path of the sea level pressure input netCDF file and , all as
+            strings.
+        :rtype: tuple
+        """
+        tracked_files = []
+
+        for index, track_type in enumerate(self.track_types):
+            self.logger.debug(f"Runing {track_type} stitching")
+
+            tracking_phase_commands = self._construct_command(track_type)
+
+            candidatefile = candidate_files[index]
             trackedfile = os.path.join(
                 self.output_directory, f"track_file_{self.time_range}_{track_type}.txt"
             )
+            self.logger.debug(f"trackedfile {trackedfile}")
 
             # stitch candidates together
             cmd_stitch_io = "{} --in {} --out {} ".format(
@@ -180,10 +200,26 @@ class TempestTracker(AbstractApp):
                 check=True,
             )
             self.logger.debug(f"sts err {sts.stdout}")
-            candidate_files.append((candidatefile))
             tracked_files.append(trackedfile)
 
-        return candidate_files, tracked_files, filenames["pslfile"]
+        return tracked_files
+
+    def _run_annual_stitch(self):
+        """
+        Check if this is the first time cycle in a new year and if it is then
+        concatenate the candidate files together and then stitch these together
+        and plot them if that has been requested.
+        """
+        pass
+
+    def _is_new_year(self):
+        """
+        Check if this is the first cycle in a new year.
+
+        :returns: True if this is the first submission period in a year.
+        :rtype: bool
+        """
+        return False
 
     def _construct_command(self, track_type):
         """
@@ -424,3 +460,5 @@ class TempestTracker(AbstractApp):
         """
         self.um_runid = os.environ["RUNID"]
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
+        self.time_cycle = os.environ["TIME_CYCLE"]
+        self.previous_cycle = os.environ["PREVIOUS_CYCLE"]

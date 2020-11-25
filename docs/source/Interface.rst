@@ -80,5 +80,11 @@ The following files are generated:
 +----------------------------------------------+---------------------------------------------------------------+
 | track_file_{time_range}_{track_type}.png     | (Optional) The plotted tracks for the specified time period   |
 +----------------------------------------------+---------------------------------------------------------------+
+| candidate_year_{year}_{track_type}.txt       | All candidate files for one year concatenated together        |
++----------------------------------------------+---------------------------------------------------------------+
+| track_year_{time_range}_{track_type}.txt     | The stitching output for one year                             |
++----------------------------------------------+---------------------------------------------------------------+
+| track_year_{time_range}_{track_type}.png     | (Optional) The plotted tracks for the specified year          |
++----------------------------------------------+---------------------------------------------------------------+
 
 The output files are not currently archived after the processing has been run.

@@ -78,10 +78,16 @@ class TempestTracker(AbstractApp):
             tracked_file = tracked_files[index]
             if os.stat(candidate_file).st_size > 0:
                 if os.stat(tracked_file).st_size > 0:
-                    title = track_type + " tracks"
                     if self.plot_tracks:
                         self.logger.debug(f'Plotting {os.path.basename(tracked_file)}')
-                        self._read_and_plot_tracks(tracked_file, nc_file, title=title)
+
+                        self._read_and_plot_tracks(
+                            tracked_file,
+                            nc_file,
+                            title_prefix=f"{self.um_runid} {self.resolution_code} "
+                                         f"{self.time_range}",
+                            title_suffix=f"{track_type} tracks"
+                        )
                 else:
                     self.logger.error(
                         f"candidate file has data but there are "
@@ -89,6 +95,21 @@ class TempestTracker(AbstractApp):
                     )
             else:
                 self.logger.error(f"candidate file is empty " f"{candidate_file}")
+
+        # Produce an annual summary if this is the first period in a year
+        if self._is_new_year():
+            annual_tracks = self._run_annual_stitch()
+            if self.plot_tracks:
+                for index, track_type in enumerate(self.track_types):
+                    self._read_and_plot_tracks(
+                        annual_tracks[index],
+                        nc_file,
+                        title_prefix=f"{self.um_runid} {self.resolution_code} "
+                                     f"{self.time_cycle[:4]}",
+                        title_suffix=f"{track_type} annual tracks"
+                    )
+        else:
+            self.logger.debug('Not running annual stitch')
 
     def _run_detection(self):
         """
@@ -165,8 +186,10 @@ class TempestTracker(AbstractApp):
 
     def _run_stitching(self, candidate_files):
         """
-        Run the Tempest stitching.
+        Run the Tempest stitching on all of the candidate files.
 
+        :param list candidate_files: The paths to the str paths of the
+            candidates to stitch.
         :returns: The path to the candidate file, the path to the tracked file,
             the path of the sea level pressure input netCDF file and , all as
             strings.
@@ -177,40 +200,79 @@ class TempestTracker(AbstractApp):
         for index, track_type in enumerate(self.track_types):
             self.logger.debug(f"Runing {track_type} stitching")
 
-            tracking_phase_commands = self._construct_command(track_type)
-
             candidatefile = candidate_files[index]
             trackedfile = os.path.join(
                 self.output_directory, f"track_file_{self.time_range}_{track_type}.txt"
             )
-            self.logger.debug(f"trackedfile {trackedfile}")
-
-            # stitch candidates together
-            cmd_stitch_io = "{} --in {} --out {} ".format(
-                self.tc_stitch_script, candidatefile, trackedfile
-            )
-            cmd_stitch = cmd_stitch_io + tracking_phase_commands["stitch"]
-            self.logger.info(f"Stitch command {cmd_stitch}")
-            sts = subprocess.run(
-                cmd_stitch,
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-                check=True,
-            )
-            self.logger.debug(f"sts err {sts.stdout}")
+            self._stitch_file(candidatefile, trackedfile, track_type)
             tracked_files.append(trackedfile)
 
         return tracked_files
 
     def _run_annual_stitch(self):
         """
-        Check if this is the first time cycle in a new year and if it is then
-        concatenate the candidate files together and then stitch these together
-        and plot them if that has been requested.
+        Concatenate the candidate files for the previous year together and then
+        stitch this file.
+
+        :returns: The string paths to the annual stitched file in a list.
+        :rtype: list
         """
-        pass
+
+        tracked_files = []
+        for track_type in self.track_types:
+            previous_year = int(self.time_cycle[:4]) - 1
+            candidate_pattern = os.path.join(
+                self.output_directory,
+                f"candidate_file_{previous_year}*_{track_type}.txt"
+            )
+            candidate_files = sorted(glob.glob(candidate_pattern))
+            annual_candidate = os.path.join(
+                self.output_directory,
+                f"candidate_year_{previous_year}_{track_type}.txt"
+            )
+            with open(annual_candidate, 'w') as out_file:
+                for candidate_file in candidate_files:
+                    with open(candidate_file) as in_file:
+                        for line in in_file:
+                            out_file.write(line)
+
+            annual_track = os.path.join(
+                self.output_directory,
+                f"track_year_{previous_year}_{track_type}.txt"
+            )
+            self._stitch_file(annual_candidate, annual_track, track_type)
+            tracked_files.append(annual_track)
+
+        return tracked_files
+
+    def _stitch_file(self, candidate_file, tracked_file, track_type):
+        """
+        Run the Tempest stitching on the specified file.
+
+        :param str candidate_file: The path of the candidate input file.
+        :param str tracked_file: The path of the stitched output file.
+        :param str track_type: The name of the type of tracking required.
+        """
+
+        tracking_phase_commands = self._construct_command(track_type)
+
+        self.logger.debug(f"tracked_file {tracked_file}")
+
+        # stitch candidates together
+        cmd_stitch_io = "{} --in {} --out {} ".format(
+            self.tc_stitch_script, candidate_file, tracked_file
+        )
+        cmd_stitch = cmd_stitch_io + tracking_phase_commands["stitch"]
+        self.logger.info(f"Stitch command {cmd_stitch}")
+        sts = subprocess.run(
+            cmd_stitch,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            check=True,
+        )
+        self.logger.debug(f"sts err {sts.stdout}")
 
     def _is_new_year(self):
         """
@@ -219,7 +281,11 @@ class TempestTracker(AbstractApp):
         :returns: True if this is the first submission period in a year.
         :rtype: bool
         """
-        return False
+
+        if self.time_cycle[:4] != self.previous_cycle[:4]:
+            return True
+        else:
+            return False
 
     def _construct_command(self, track_type):
         """
@@ -408,24 +474,34 @@ class TempestTracker(AbstractApp):
 
         return processed_filenames
 
-    def _read_and_plot_tracks(self, tracked_file, nc_file, title=""):
+    def _read_and_plot_tracks(self, tracked_file, nc_file, title_prefix="",
+                              title_suffix="TempestExtremes TCs",
+                              include_num_tracks=True):
         """
-        Read and then plot the tracks
+        Read and then plot the tracks. The title is the specified prefix, the
+        number of tracks (if requested) and then the suffix.
 
         :param str tracked_file: The path to the track file.
         :param str nc_file: The path to an input data netCDF file, which is
             used to gather additional information about the dates and calendars
             used in the data.
-        :param str title: The title for the plot.
+        :param str title_suffix: The title for the plot.
+        :param str title_suffix: The title for the plot.
+        :param bool include_num_tracks: Include the number of tracks loaded?
         """
-        storms = get_trajectories(tracked_file, nc_file, self.frequency)
-        num_trajectories = count_trajectories(storms)
 
-        title_suffix = title if title else "TempestExtremes TCs"
-        title_full = (
-            f"{self.um_runid} {self.resolution_code} "
-            f"{self.time_range} {num_trajectories} {title_suffix}"
-        )
+        storms = get_trajectories(tracked_file, nc_file, self.frequency)
+
+        title_components = []
+        if title_prefix:
+            title_components.append(title_prefix)
+        if include_num_tracks:
+            title_components.append(str(count_trajectories(storms)))
+        if title_suffix:
+            title_components.append(title_suffix)
+
+        title_full = ' '.join(title_components)
+
         filename = tracked_file[:-4] + ".png"
         plot_trajectories_cartopy(storms, filename, title=title_full)
 

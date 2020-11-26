@@ -1,7 +1,7 @@
 Index: b/x/3/1/5/trunk/suite.rc
 ===================================================================
 --- b/x/3/1/5/trunk/suite.rc	(revision 174521)
-+++ b/x/3/1/5/trunk/suite.rc	(revision 178017)
++++ b/x/3/1/5/trunk/suite.rc	(revision 178901)
 @@ -83,5 +83,8 @@
 
          [[[ {{EXPT_RESUB}} ]]]
@@ -12,7 +12,7 @@ Index: b/x/3/1/5/trunk/suite.rc
 +            """
 
          {% if TASK_ARCH_WALL %}
-@@ -204,4 +207,14 @@
+@@ -204,4 +207,16 @@
              ROSE_TASK_APP = fcm_make_pp
 
 +    [[tracking]]
@@ -24,6 +24,8 @@ Index: b/x/3/1/5/trunk/suite.rc
 +            module load cray-netcdf/4.3.2"""
 +        [[[environment]]]
 +            ROSE_TASK_APP = tempest_tracker
++            TIME_CYCLE = $({{ROSEDATE}} ref)
++            PREVIOUS_CYCLE = $({{ROSEDATE}} --offset=-{{EXPT_RESUB}} ref)
 +
      [[pptransfer]]
          inherit = RUN_MAIN, PPTRANSFER_RESOURCE

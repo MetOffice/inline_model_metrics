@@ -32,6 +32,8 @@ class TempestTracker(AbstractApp):
         # Instance attributes set later
         self.time_range = None
         self.frequency = None
+        self.resolution_code = None
+
 
     @property
     def cli_spec(self):
@@ -473,9 +475,11 @@ class TempestTracker(AbstractApp):
         # Identify the grid and orography file
         longitude_size = reference.shape[-1]
         resolution = longitude_size // 2
+        self.resolution_code = f"N{resolution}"
+
         processed_filenames['topofile'] = os.path.join(
             self.orography_dir,
-            f"orog_HadGEM3-GC31-N{resolution}e.nc"
+            f"orog_HadGEM3-GC31-{self.resolution_code}e.nc"
         )
         self.logger.debug(f"Orography file {processed_filenames['topofile']}")
 
@@ -514,7 +518,6 @@ class TempestTracker(AbstractApp):
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""
-        self.resolution_code = self.app_config.get_property("common", "resolution")
 
         self.input_directory = self.app_config.get_property("common", "input_directory")
         self.output_directory = self.app_config.get_property(

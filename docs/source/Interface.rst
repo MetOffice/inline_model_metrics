@@ -88,3 +88,20 @@ The following files are generated:
 +----------------------------------------------+---------------------------------------------------------------+
 
 The output files are not currently archived after the processing has been run.
+
+Orography Files
+###############
+
+An orography file for each grid being tracked should be placed in the directory
+specified by the `orography_dir` value in `rose-app.conf`. The file to use is
+identified from the number of longitude  points in the the input files and is
+specified using the standard UM N grid name. The orography files should have a
+name in the form::
+
+    orog_HadGEM3-GC31-<n-code>e.nc
+
+For example a file with 512 longitude points is on the `N216` grid and will be
+called::
+
+    orog_HadGEM3-GC31-N216e.nc
+

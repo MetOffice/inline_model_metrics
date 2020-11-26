@@ -402,8 +402,6 @@ class TempestTracker(AbstractApp):
         ]
         processed_filenames = {}
 
-        processed_filenames["topofile"] = self.orography_file
-
         variables_required = {}
         variables_required["pslfile"] = {"fname": "slp"}
         variables_required["zgfile"] = {"fname": "zg", "varname_new": "zg"}
@@ -427,6 +425,7 @@ class TempestTracker(AbstractApp):
             variables_required["pslfile"]["fname"],
         )
         reference_path = os.path.join(self.input_directory, reference_name)
+        reference = iris.load_cube(reference_path)
 
         for filetype in filetypes_required:
             filename = filename_format.format(
@@ -455,7 +454,6 @@ class TempestTracker(AbstractApp):
             ]:
                 # regrid u and v to t grid and rename variable if necessary
                 cube = iris.load_cube(input_path)
-                reference = iris.load_cube(reference_path)
                 regridded = cube.regrid(reference, iris.analysis.Linear())
                 if "varname_new" in variables_required[filetype]:
                     regridded.var_name = variables_required[filetype]["varname_new"]
@@ -471,6 +469,15 @@ class TempestTracker(AbstractApp):
                     shutil.copyfile(input_path, output_path)
 
             processed_filenames[filetype] = output_path
+
+        # Identify the grid and orography file
+        longitude_size = reference.shape[-1]
+        resolution = longitude_size // 2
+        processed_filenames['topofile'] = os.path.join(
+            self.orography_dir,
+            f"orog_HadGEM3-GC31-N{resolution}e.nc"
+        )
+        self.logger.debug(f"Orography file {processed_filenames['topofile']}")
 
         return processed_filenames
 
@@ -520,7 +527,7 @@ class TempestTracker(AbstractApp):
             "common", "tc_stitch_script"
         )
         self.psl_std_name = self.app_config.get_property("common", "psl_std_name")
-        self.orography_file = self.app_config.get_property("common", "orography_file")
+        self.orography_dir = self.app_config.get_property("common", "orography_dir")
         self.extended_files = self.app_config.get_bool_property(
             "common", "extended_files"
         )

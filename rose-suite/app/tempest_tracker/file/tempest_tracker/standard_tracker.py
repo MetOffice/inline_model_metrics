@@ -34,7 +34,6 @@ class TempestTracker(AbstractApp):
         self.frequency = None
         self.resolution_code = None
 
-
     @property
     def cli_spec(self):
         """
@@ -67,7 +66,7 @@ class TempestTracker(AbstractApp):
             f"um_runid {self.um_runid}"
         )
 
-        #TODO run the node editor?
+        # TODO run the node editor?
 
         # Run the detection and stitching for this time period
         candidate_files, nc_file = self._run_detection()
@@ -81,14 +80,14 @@ class TempestTracker(AbstractApp):
             if os.stat(candidate_file).st_size > 0:
                 if os.stat(tracked_file).st_size > 0:
                     if self.plot_tracks:
-                        self.logger.debug(f'Plotting {os.path.basename(tracked_file)}')
+                        self.logger.debug(f"Plotting {os.path.basename(tracked_file)}")
 
                         self._read_and_plot_tracks(
                             tracked_file,
                             nc_file,
                             title_prefix=f"{self.um_runid} {self.resolution_code} "
-                                         f"{self.time_range}",
-                            title_suffix=f"{track_type} tracks"
+                            f"{self.time_range}",
+                            title_suffix=f"{track_type} tracks",
                         )
                 else:
                     self.logger.error(
@@ -107,11 +106,11 @@ class TempestTracker(AbstractApp):
                         annual_tracks[index],
                         nc_file,
                         title_prefix=f"{self.um_runid} {self.resolution_code} "
-                                     f"{self.time_cycle[:4]}",
-                        title_suffix=f"{track_type} annual tracks"
+                        f"{self.time_cycle[:4]}",
+                        title_suffix=f"{track_type} annual tracks",
                     )
         else:
-            self.logger.debug('Not running annual stitch')
+            self.logger.debug("Not running annual stitch")
 
     def _run_detection(self):
         """
@@ -138,7 +137,7 @@ class TempestTracker(AbstractApp):
 
             if not self.extended_files:
                 # identify candidates
-                #TODO there is a file difference here with the run version
+                # TODO there is a file difference here with the run version
                 cmd_io = '{} --in_data "{};{};{};{};{}" --out {} '.format(
                     self.tc_detect_script,
                     filenames["pslfile"],
@@ -149,18 +148,15 @@ class TempestTracker(AbstractApp):
                     candidatefile,
                 )
             else:
-                cmd_io = (
-                    '{} --in_data "{};{};{};{};{};{}" '
-                    "--out {} ".format(
-                        self.tc_detect_script,
-                        filenames["pslfile"],
-                        filenames["zgfile"],
-                        filenames["u10mfile"],
-                        filenames["v10mfile"],
-                        filenames["rvT63file"],
-                        filenames["topofile"],
-                        candidatefile,
-                    )
+                cmd_io = '{} --in_data "{};{};{};{};{};{}" ' "--out {} ".format(
+                    self.tc_detect_script,
+                    filenames["pslfile"],
+                    filenames["zgfile"],
+                    filenames["u10mfile"],
+                    filenames["v10mfile"],
+                    filenames["rvT63file"],
+                    filenames["topofile"],
+                    candidatefile,
                 )
 
             tracking_phase_commands = self._construct_command(track_type)
@@ -225,22 +221,21 @@ class TempestTracker(AbstractApp):
             previous_year = int(self.time_cycle[:4]) - 1
             candidate_pattern = os.path.join(
                 self.output_directory,
-                f"candidate_file_{previous_year}*_{track_type}.txt"
+                f"candidate_file_{previous_year}*_{track_type}.txt",
             )
             candidate_files = sorted(glob.glob(candidate_pattern))
             annual_candidate = os.path.join(
                 self.output_directory,
-                f"candidate_year_{previous_year}_{track_type}.txt"
+                f"candidate_year_{previous_year}_{track_type}.txt",
             )
-            with open(annual_candidate, 'w') as out_file:
+            with open(annual_candidate, "w") as out_file:
                 for candidate_file in candidate_files:
                     with open(candidate_file) as in_file:
                         for line in in_file:
                             out_file.write(line)
 
             annual_track = os.path.join(
-                self.output_directory,
-                f"track_year_{previous_year}_{track_type}.txt"
+                self.output_directory, f"track_year_{previous_year}_{track_type}.txt"
             )
             self._stitch_file(annual_candidate, annual_track, track_type)
             tracked_files.append(annual_track)
@@ -477,17 +472,21 @@ class TempestTracker(AbstractApp):
         resolution = longitude_size // 2
         self.resolution_code = f"N{resolution}"
 
-        processed_filenames['topofile'] = os.path.join(
-            self.orography_dir,
-            f"orog_HadGEM3-GC31-{self.resolution_code}e.nc"
+        processed_filenames["topofile"] = os.path.join(
+            self.orography_dir, f"orog_HadGEM3-GC31-{self.resolution_code}e.nc"
         )
         self.logger.debug(f"Orography file {processed_filenames['topofile']}")
 
         return processed_filenames
 
-    def _read_and_plot_tracks(self, tracked_file, nc_file, title_prefix="",
-                              title_suffix="TempestExtremes TCs",
-                              include_num_tracks=True):
+    def _read_and_plot_tracks(
+        self,
+        tracked_file,
+        nc_file,
+        title_prefix="",
+        title_suffix="TempestExtremes TCs",
+        include_num_tracks=True,
+    ):
         """
         Read and then plot the tracks. The title is the specified prefix, the
         number of tracks (if requested) and then the suffix.
@@ -511,7 +510,7 @@ class TempestTracker(AbstractApp):
         if title_suffix:
             title_components.append(title_suffix)
 
-        title_full = ' '.join(title_components)
+        title_full = " ".join(title_components)
 
         filename = tracked_file[:-4] + ".png"
         plot_trajectories_cartopy(storms, filename, title=title_full)

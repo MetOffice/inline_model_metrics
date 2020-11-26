@@ -11,6 +11,11 @@ will be added to this repository in the future.
 
 .. image:: images/postproc_file-transformation.png
 
+In the Model Output Streams then the `reinit_step` value of the netCDF stream
+must equal the resubmission period `EXPT_RESUB` defined in `rose-app.conf` so
+that the netCDF files are available to the tracking task when the subsequent
+postproc task has completed.
+
 .. image:: images/model_output_streams.png
 
 .. image:: images/usage_profile.png

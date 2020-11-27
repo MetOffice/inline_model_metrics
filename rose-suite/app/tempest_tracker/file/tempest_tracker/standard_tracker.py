@@ -291,37 +291,41 @@ class TempestTracker(AbstractApp):
             edited_file = tracked_file[:-4] + "_edited_profile.txt"
 
             if not self.extended_files:
-                cmd_io = ('{} --in_data "{};{};{};{};{}" --in_nodefile {} '
-                          '--out_nodefile {}'.format(
-                    self.tc_editor_script,
-                    input_files['pslfile'],
-                    input_files['zgfile'],
-                    input_files['u10mfile'],
-                    input_files['v10mfile'],
-                    input_files['topofile'],
-                    tracked_file,
-                    edited file,
-                ))
+                cmd_io = (
+                    '{} --in_data "{};{};{};{};{}" --in_nodefile {} '
+                    "--out_nodefile {} ".format(
+                        self.tc_editor_script,
+                        input_files["pslfile"],
+                        input_files["zgfile"],
+                        input_files["u10mfile"],
+                        input_files["v10mfile"],
+                        input_files["topofile"],
+                        tracked_file,
+                        edited_file,
+                    )
+                )
             else:
-                cmd_io = ('{} --in_data "{};{};{};{};{};{};{};{};{};{};{};'
-                          '{};{}" in_nodefile {} --out_nodefile {} '.format(
-                    self.tc_editor_script,
-                    input_files['pslfile'],
-                    input_files['zgfile'],
-                    input_files['ufile'],
-                    input_files['vfile'],
-                    input_files['rvfile'],
-                    input_files['u10mfile'],
-                    input_files['v10mfile'],
-                    input_files['ws10mfile'],
-                    input_files['viwvefile'],
-                    input_files['viwvnfile'],
-                    input_files['tafile'],
-                    input_files['rvT63file'],
-                    input_files['topofile'],
-                    tracked_file,
-                    edited_file,
-                ))
+                cmd_io = (
+                    '{} --in_data "{};{};{};{};{};{};{};{};{};{};{};'
+                    '{};{}" in_nodefile {} --out_nodefile {} '.format(
+                        self.tc_editor_script,
+                        input_files["pslfile"],
+                        input_files["zgfile"],
+                        input_files["ufile"],
+                        input_files["vfile"],
+                        input_files["rvfile"],
+                        input_files["u10mfile"],
+                        input_files["v10mfile"],
+                        input_files["ws10mfile"],
+                        input_files["viwvefile"],
+                        input_files["viwvnfile"],
+                        input_files["tafile"],
+                        input_files["rvT63file"],
+                        input_files["topofile"],
+                        tracked_file,
+                        edited_file,
+                    )
+                )
 
             cmd_edit = cmd_io + tracking_phase_commands["profile"]
             self.logger.info(f"Editor command {cmd_edit}")
@@ -370,7 +374,7 @@ class TempestTracker(AbstractApp):
         """
 
         commands = {}
-        for step in ["detect", "stitch"]:
+        for step in ["detect", "stitch", "profile"]:
             step_config = self.app_config.section_to_dict(f"{track_type}_{step}")
 
             step_arguments = [

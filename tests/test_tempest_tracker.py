@@ -41,6 +41,9 @@ class TestTempestTracker(unittest.TestCase):
 
         [tc_slp_stitch]
         min_endpoint_dist=8.0
+        
+        [tc_slp_profile]
+        in_fmt="lon,lat,slp,wind10m,zgdiff,surface_altitude"
         """
 
     def tearDown(self):
@@ -67,6 +70,7 @@ class TestTempestTracker(unittest.TestCase):
             '_altitude,max,0" '
             '--searchbymin "air_pressure_at_sea_level"',
             "stitch": "--min_endpoint_dist 8.0",
+            "profile": '--in_fmt "lon,lat,slp,wind10m,zgdiff,surface_altitude"',
         }
         self.maxDiff = None  # Show the full diff if test fails
         self.assertEqual(expected, commands)

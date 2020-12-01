@@ -19,6 +19,8 @@ class TestTempestTracker(unittest.TestCase):
         _fd, self.cfg_file = tempfile.mkstemp(suffix=".conf", dir=self.runtime_dir)
         os.environ["RUNID"] = "ab123"
         os.environ["CYLC_TASK_CYCLE_TIME"] = "20000101T0000Z"
+        os.environ["TIME_CYCLE"] = "20000101T0000Z"
+        os.environ["PREVIOUS_CYCLE"] = "19991201T0000Z"
         self.basic_app_config = """
         [common]
         resolution=N96
@@ -39,6 +41,9 @@ class TestTempestTracker(unittest.TestCase):
 
         [tc_slp_stitch]
         min_endpoint_dist=8.0
+        
+        [tc_slp_profile]
+        in_fmt="lon,lat,slp,wind10m,zgdiff,surface_altitude"
         """
 
     def tearDown(self):
@@ -65,9 +70,41 @@ class TestTempestTracker(unittest.TestCase):
             '_altitude,max,0" '
             '--searchbymin "air_pressure_at_sea_level"',
             "stitch": "--min_endpoint_dist 8.0",
+            "profile": '--in_fmt "lon,lat,slp,wind10m,zgdiff,surface_altitude"',
         }
         self.maxDiff = None  # Show the full diff if test fails
         self.assertEqual(expected, commands)
+
+    def test_is_new_year_new_decade(self):
+        """Test _is_new_year"""
+
+        _create_app_config_file(self.cfg_file, self.basic_app_config)
+        args = ["-c", self.cfg_file, "-q"]
+        app = TempestTracker(args)
+        app._get_environment_variables()
+        self.assertTrue(app._is_new_year())
+
+    def test_is_new_year_new_year(self):
+        """Test _is_new_year"""
+
+        _create_app_config_file(self.cfg_file, self.basic_app_config)
+        os.environ["TIME_CYCLE"] = "19990101T0000Z"
+        os.environ["PREVIOUS_CYCLE"] = "19981201T0000Z"
+        args = ["-c", self.cfg_file, "-q"]
+        app = TempestTracker(args)
+        app._get_environment_variables()
+        self.assertTrue(app._is_new_year())
+
+    def test_is_new_year_same_year(self):
+        """Test _is_new_year"""
+
+        _create_app_config_file(self.cfg_file, self.basic_app_config)
+        os.environ["TIME_CYCLE"] = "19981201T0000Z"
+        os.environ["PREVIOUS_CYCLE"] = "19981101T0000Z"
+        args = ["-c", self.cfg_file, "-q"]
+        app = TempestTracker(args)
+        app._get_environment_variables()
+        self.assertFalse(app._is_new_year())
 
 
 def _create_app_config_file(config_file, config_text):

@@ -42,6 +42,10 @@ The Python code requires the following environment variables to be set:
 +----------------------+------------------------------------------------------+
 | RUNID                | The UM RUNID                                         |
 +----------------------+------------------------------------------------------+
+| TIME_CYCLE           | The UM RUNID                                         |
++----------------------+------------------------------------------------------+
+| PREVIOUS_CYCLE       | The UM RUNID                                         |
++----------------------+------------------------------------------------------+
 
 In the default configuration, the following environment variable is used in
 `rose-app.conf` and needs to be set by the suite (which happens by default in
@@ -81,5 +85,28 @@ The following files are generated:
 +----------------------------------------------+---------------------------------------------------------------+
 | track_file_{time_range}_{track_type}.png     | (Optional) The plotted tracks for the specified time period   |
 +----------------------------------------------+---------------------------------------------------------------+
+| candidate_year_{year}_{track_type}.txt       | All candidate files for one year concatenated together        |
++----------------------------------------------+---------------------------------------------------------------+
+| track_year_{time_range}_{track_type}.txt     | The stitching output for one year                             |
++----------------------------------------------+---------------------------------------------------------------+
+| track_year_{time_range}_{track_type}.png     | (Optional) The plotted tracks for the specified year          |
++----------------------------------------------+---------------------------------------------------------------+
 
 The output files are not currently archived after the processing has been run.
+
+Orography Files
+###############
+
+An orography file for each grid being tracked should be placed in the directory
+specified by the `orography_dir` value in `rose-app.conf`. The file to use is
+identified from the number of longitude  points in the the input files and is
+specified using the standard UM N grid name. The orography files should have a
+name in the form::
+
+    orog_HadGEM3-GC31-<n-code>e.nc
+
+For example a file with 512 longitude points is on the `N216` grid and will be
+called::
+
+    orog_HadGEM3-GC31-N216e.nc
+

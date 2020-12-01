@@ -24,7 +24,7 @@ class TempestTracker(AbstractApp):
     """
 
     def __init__(self, arglist=None, **kwargs):
-        super(TempestTracker, self).__init__(version="1.0", **kwargs)
+        super().__init__(version="1.0", **kwargs)
         self._parse_args(arglist, desc="Inline TempestExtreme tracking")
         self._parse_app_config()
         self._set_message_level()
@@ -32,6 +32,7 @@ class TempestTracker(AbstractApp):
         # Instance attributes set later
         self.time_range = None
         self.frequency = None
+        self.resolution_code = None
 
     @property
     def cli_spec(self):
@@ -65,18 +66,28 @@ class TempestTracker(AbstractApp):
             f"um_runid {self.um_runid}"
         )
 
-        # Run the tracking
-        candidate_files, tracked_files, nc_file = self._run_tracking()
+        # Run the detection and stitching for this time period
+        candidate_files, input_files = self._run_detection()
+        tracked_files = self._run_stitching(candidate_files)
+        edited_files = self._run_node_file_editor(tracked_files, input_files)
 
-        # Run the plotting (if required and data available)
+        # Run the plotting for this time period (if required and
+        # data available)
         for index, track_type in enumerate(self.track_types):
             candidate_file = candidate_files[index]
             tracked_file = tracked_files[index]
             if os.stat(candidate_file).st_size > 0:
                 if os.stat(tracked_file).st_size > 0:
-                    title = track_type + " tracks"
                     if self.plot_tracks:
-                        self._read_and_plot_tracks(tracked_file, nc_file, title=title)
+                        self.logger.debug(f"Plotting {os.path.basename(tracked_file)}")
+
+                        self._read_and_plot_tracks(
+                            tracked_file,
+                            input_files["pslfile"],
+                            title_prefix=f"{self.um_runid} {self.resolution_code} "
+                            f"{self.time_range}",
+                            title_suffix=f"{track_type} tracks",
+                        )
                 else:
                     self.logger.error(
                         f"candidate file has data but there are "
@@ -85,13 +96,27 @@ class TempestTracker(AbstractApp):
             else:
                 self.logger.error(f"candidate file is empty " f"{candidate_file}")
 
-    def _run_tracking(self):
-        """
-        Run the tracking.
+        # Produce an annual summary if this is the first period in a year
+        if self._is_new_year():
+            annual_tracks = self._run_annual_stitch()
+            if self.plot_tracks:
+                for index, track_type in enumerate(self.track_types):
+                    self._read_and_plot_tracks(
+                        annual_tracks[index],
+                        input_files["pslfile"],
+                        title_prefix=f"{self.um_runid} {self.resolution_code} "
+                        f"{self.time_cycle[:4]}",
+                        title_suffix=f"{track_type} annual tracks",
+                    )
+        else:
+            self.logger.debug("Not running annual stitch")
 
-        :returns: The path to the candidate file, the path to the tracked file,
-            the path of the sea level pressure input netCDF file and , all as
-            strings.
+    def _run_detection(self):
+        """
+        Run the Tempest detection.
+
+        :returns: The path to the candidate files (as a list ordered by track
+            type) and details of the processed input files (as a dict).
         :rtype: tuple
         """
         self.logger.debug(f"cwd {os.getcwd()}")
@@ -99,10 +124,9 @@ class TempestTracker(AbstractApp):
         filenames = self._generate_data_files()
 
         candidate_files = []
-        tracked_files = []
 
         for track_type in self.track_types:
-            self.logger.debug(f"Runing {track_type} tracking")
+            self.logger.debug(f"Runing {track_type} detection")
             candidatefile = os.path.join(
                 self.output_directory,
                 f"candidate_file_{self.cylc_task_cycle_time}_{track_type}.txt",
@@ -111,6 +135,7 @@ class TempestTracker(AbstractApp):
 
             if not self.extended_files:
                 # identify candidates
+                # TODO there is a file difference here with the run version
                 cmd_io = '{} --in_data "{};{};{};{};{}" --out {} '.format(
                     self.tc_detect_script,
                     filenames["pslfile"],
@@ -121,25 +146,15 @@ class TempestTracker(AbstractApp):
                     candidatefile,
                 )
             else:
-                cmd_io = (
-                    '{} --in_data "{};{};{};{};{};{};{};{};{};{};{};{};{}" '
-                    "--out {} ".format(
-                        self.tc_detect_script,
-                        filenames["pslfile"],
-                        filenames["zgfile"],
-                        filenames["ufile"],
-                        filenames["vfile"],
-                        filenames["rvfile"],
-                        filenames["u10mfile"],
-                        filenames["v10mfile"],
-                        filenames["ws10mfile"],
-                        filenames["viwvefile"],
-                        filenames["viwvnfile"],
-                        filenames["tafile"],
-                        filenames["rvT63file"],
-                        filenames["topofile"],
-                        candidatefile,
-                    )
+                cmd_io = '{} --in_data "{};{};{};{};{};{}" ' "--out {} ".format(
+                    self.tc_detect_script,
+                    filenames["pslfile"],
+                    filenames["zgfile"],
+                    filenames["u10mfile"],
+                    filenames["v10mfile"],
+                    filenames["rvT63file"],
+                    filenames["topofile"],
+                    candidatefile,
                 )
 
             tracking_phase_commands = self._construct_command(track_type)
@@ -161,29 +176,190 @@ class TempestTracker(AbstractApp):
                 )
                 raise RuntimeError(msg)
 
+            candidate_files.append(candidatefile)
+
+        return candidate_files, filenames
+
+    def _run_stitching(self, candidate_files):
+        """
+        Run the Tempest stitching on all of the candidate files.
+
+        :param list candidate_files: The paths to the str paths of the
+            candidates to stitch.
+        :returns: The path to the candidate file, the path to the tracked file,
+            the path of the sea level pressure input netCDF file and , all as
+            strings.
+        :rtype: tuple
+        """
+        tracked_files = []
+
+        for index, track_type in enumerate(self.track_types):
+            self.logger.debug(f"Runing {track_type} stitching")
+
+            candidatefile = candidate_files[index]
             trackedfile = os.path.join(
                 self.output_directory, f"track_file_{self.time_range}_{track_type}.txt"
             )
+            self._stitch_file(candidatefile, trackedfile, track_type)
+            tracked_files.append(trackedfile)
 
-            # stitch candidates together
-            cmd_stitch_io = "{} --in {} --out {} ".format(
-                self.tc_stitch_script, candidatefile, trackedfile
+        return tracked_files
+
+    def _run_annual_stitch(self):
+        """
+        Concatenate the candidate files for the previous year together and then
+        stitch this file.
+
+        :returns: The string paths to the annual stitched file in a list.
+        :rtype: list
+        """
+
+        tracked_files = []
+        for track_type in self.track_types:
+            previous_year = int(self.time_cycle[:4]) - 1
+            candidate_pattern = os.path.join(
+                self.output_directory,
+                f"candidate_file_{previous_year}*_{track_type}.txt",
             )
-            cmd_stitch = cmd_stitch_io + tracking_phase_commands["stitch"]
-            self.logger.info(f"Stitch command {cmd_stitch}")
+            candidate_files = sorted(glob.glob(candidate_pattern))
+            annual_candidate = os.path.join(
+                self.output_directory,
+                f"candidate_year_{previous_year}_{track_type}.txt",
+            )
+            with open(annual_candidate, "w") as out_file:
+                for candidate_file in candidate_files:
+                    with open(candidate_file) as in_file:
+                        for line in in_file:
+                            out_file.write(line)
+
+            annual_track = os.path.join(
+                self.output_directory, f"track_year_{previous_year}_{track_type}.txt"
+            )
+            self._stitch_file(annual_candidate, annual_track, track_type)
+            tracked_files.append(annual_track)
+
+        return tracked_files
+
+    def _stitch_file(self, candidate_file, tracked_file, track_type):
+        """
+        Run the Tempest stitching on the specified file.
+
+        :param str candidate_file: The path of the candidate input file.
+        :param str tracked_file: The path of the stitched output file.
+        :param str track_type: The name of the type of tracking required.
+        """
+
+        tracking_phase_commands = self._construct_command(track_type)
+
+        self.logger.debug(f"tracked_file {tracked_file}")
+
+        # stitch candidates together
+        cmd_stitch_io = "{} --in {} --out {} ".format(
+            self.tc_stitch_script, candidate_file, tracked_file
+        )
+        cmd_stitch = cmd_stitch_io + tracking_phase_commands["stitch"]
+        self.logger.info(f"Stitch command {cmd_stitch}")
+        sts = subprocess.run(
+            cmd_stitch,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            check=True,
+        )
+        self.logger.debug(f"sts err {sts.stdout}")
+
+    def _run_node_file_editor(self, tracked_files, input_files):
+        """
+        Run the Tempest node file editor on all of the tracked files.
+
+        :param list tracked_files: The paths (as strings) of the tracked files
+            produced by the stitching process. The files are in order of
+            track type.
+        :param dict input_files: Details of the processed input files.
+        :returns: The path to the candidate file, the path to the tracked file,
+            the path of the sea level pressure input netCDF file and , all as
+            strings.
+        :rtype: tuple
+        """
+
+        edited_files = []
+
+        for index, track_type in enumerate(self.track_types):
+            tracking_phase_commands = self._construct_command(track_type)
+            tracked_file = tracked_files[index]
+            edited_file = tracked_file[:-4] + "_edited_profile.txt"
+
+            if not self.extended_files:
+                cmd_io = (
+                    '{} --in_data "{};{};{};{};{}" --in_nodefile {} '
+                    "--out_nodefile {} ".format(
+                        self.tc_editor_script,
+                        input_files["pslfile"],
+                        input_files["zgfile"],
+                        input_files["u10mfile"],
+                        input_files["v10mfile"],
+                        input_files["topofile"],
+                        tracked_file,
+                        edited_file,
+                    )
+                )
+            else:
+                cmd_io = (
+                    '{} --in_data "{};{};{};{};{};{};{};{};{};{};{};'
+                    '{};{}" in_nodefile {} --out_nodefile {} '.format(
+                        self.tc_editor_script,
+                        input_files["pslfile"],
+                        input_files["zgfile"],
+                        input_files["ufile"],
+                        input_files["vfile"],
+                        input_files["rvfile"],
+                        input_files["u10mfile"],
+                        input_files["v10mfile"],
+                        input_files["ws10mfile"],
+                        input_files["viwvefile"],
+                        input_files["viwvnfile"],
+                        input_files["tafile"],
+                        input_files["rvT63file"],
+                        input_files["topofile"],
+                        tracked_file,
+                        edited_file,
+                    )
+                )
+
+            cmd_edit = cmd_io + tracking_phase_commands["profile"]
+            self.logger.info(f"Editor command {cmd_edit}")
+
             sts = subprocess.run(
-                cmd_stitch,
+                cmd_edit,
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 universal_newlines=True,
                 check=True,
             )
-            self.logger.debug(f"sts err {sts.stdout}")
-            candidate_files.append((candidatefile))
-            tracked_files.append(trackedfile)
+            self.logger.debug(sts.stdout)
+            if "EXCEPTION" in sts.stdout:
+                msg = (
+                    f"EXCEPTION found in TempestExtreme editor output\n" f"{sts.stdout}"
+                )
+                raise RuntimeError(msg)
+            edited_files.append(edited_file)
 
-        return candidate_files, tracked_files, filenames["pslfile"]
+        return edited_files
+
+    def _is_new_year(self):
+        """
+        Check if this is the first cycle in a new year.
+
+        :returns: True if this is the first submission period in a year.
+        :rtype: bool
+        """
+
+        if self.time_cycle[:4] != self.previous_cycle[:4]:
+            return True
+        else:
+            return False
 
     def _construct_command(self, track_type):
         """
@@ -198,7 +374,7 @@ class TempestTracker(AbstractApp):
         """
 
         commands = {}
-        for step in ["detect", "stitch"]:
+        for step in ["detect", "stitch", "profile"]:
             step_config = self.app_config.section_to_dict(f"{track_type}_{step}")
 
             step_arguments = [
@@ -300,8 +476,6 @@ class TempestTracker(AbstractApp):
         ]
         processed_filenames = {}
 
-        processed_filenames["topofile"] = self.orography_file
-
         variables_required = {}
         variables_required["pslfile"] = {"fname": "slp"}
         variables_required["zgfile"] = {"fname": "zg", "varname_new": "zg"}
@@ -325,6 +499,7 @@ class TempestTracker(AbstractApp):
             variables_required["pslfile"]["fname"],
         )
         reference_path = os.path.join(self.input_directory, reference_name)
+        reference = iris.load_cube(reference_path)
 
         for filetype in filetypes_required:
             filename = filename_format.format(
@@ -353,7 +528,6 @@ class TempestTracker(AbstractApp):
             ]:
                 # regrid u and v to t grid and rename variable if necessary
                 cube = iris.load_cube(input_path)
-                reference = iris.load_cube(reference_path)
                 regridded = cube.regrid(reference, iris.analysis.Linear())
                 if "varname_new" in variables_required[filetype]:
                     regridded.var_name = variables_required[filetype]["varname_new"]
@@ -370,32 +544,56 @@ class TempestTracker(AbstractApp):
 
             processed_filenames[filetype] = output_path
 
+        # Identify the grid and orography file
+        longitude_size = reference.shape[-1]
+        resolution = longitude_size // 2
+        self.resolution_code = f"N{resolution}"
+
+        processed_filenames["topofile"] = os.path.join(
+            self.orography_dir, f"orog_HadGEM3-GC31-{self.resolution_code}e.nc"
+        )
+        self.logger.debug(f"Orography file {processed_filenames['topofile']}")
+
         return processed_filenames
 
-    def _read_and_plot_tracks(self, tracked_file, nc_file, title=""):
+    def _read_and_plot_tracks(
+        self,
+        tracked_file,
+        nc_file,
+        title_prefix="",
+        title_suffix="TempestExtremes TCs",
+        include_num_tracks=True,
+    ):
         """
-        Read and then plot the tracks
+        Read and then plot the tracks. The title is the specified prefix, the
+        number of tracks (if requested) and then the suffix.
 
         :param str tracked_file: The path to the track file.
         :param str nc_file: The path to an input data netCDF file, which is
             used to gather additional information about the dates and calendars
             used in the data.
-        :param str title: The title for the plot.
+        :param str title_suffix: The title for the plot.
+        :param str title_suffix: The title for the plot.
+        :param bool include_num_tracks: Include the number of tracks loaded?
         """
-        storms = get_trajectories(tracked_file, nc_file, self.frequency)
-        num_trajectories = count_trajectories(storms)
 
-        title_suffix = title if title else "TempestExtremes TCs"
-        title_full = (
-            f"{self.um_runid} {self.resolution_code} "
-            f"{self.time_range} {num_trajectories} {title_suffix}"
-        )
+        storms = get_trajectories(tracked_file, nc_file, self.frequency)
+
+        title_components = []
+        if title_prefix:
+            title_components.append(title_prefix)
+        if include_num_tracks:
+            title_components.append(str(count_trajectories(storms)))
+        if title_suffix:
+            title_components.append(title_suffix)
+
+        title_full = " ".join(title_components)
+
         filename = tracked_file[:-4] + ".png"
         plot_trajectories_cartopy(storms, filename, title=title_full)
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""
-        self.resolution_code = self.app_config.get_property("common", "resolution")
 
         self.input_directory = self.app_config.get_property("common", "input_directory")
         self.output_directory = self.app_config.get_property(
@@ -407,8 +605,11 @@ class TempestTracker(AbstractApp):
         self.tc_stitch_script = self.app_config.get_property(
             "common", "tc_stitch_script"
         )
+        self.tc_editor_script = self.app_config.get_property(
+            "common", "tc_editor_script"
+        )
         self.psl_std_name = self.app_config.get_property("common", "psl_std_name")
-        self.orography_file = self.app_config.get_property("common", "orography_file")
+        self.orography_dir = self.app_config.get_property("common", "orography_dir")
         self.extended_files = self.app_config.get_bool_property(
             "common", "extended_files"
         )
@@ -424,3 +625,5 @@ class TempestTracker(AbstractApp):
         """
         self.um_runid = os.environ["RUNID"]
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
+        self.time_cycle = os.environ["TIME_CYCLE"]
+        self.previous_cycle = os.environ["PREVIOUS_CYCLE"]

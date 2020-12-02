@@ -7,6 +7,8 @@ import shutil
 import subprocess
 import sys
 
+from netCDF4 import Dataset
+import numpy as np
 import iris
 
 from afterburner.apps import AbstractApp
@@ -33,6 +35,7 @@ class TempestTracker(AbstractApp):
         self.time_range = None
         self.frequency = None
         self.resolution_code = None
+        self.FILLVAL = 9999
 
     @property
     def cli_spec(self):
@@ -66,10 +69,50 @@ class TempestTracker(AbstractApp):
             f"um_runid {self.um_runid}"
         )
 
+        # First write a dot_file to document which timestamps are yet to be tracked
+        # Check for input files available
+        # for um postproc nc files, these take form 
+        timestamp_day = self.cylc_task_cycle_time[:8]
+        self.logger.debug(f"time_stamp_day {timestamp_day}")
+
+        dot_file = 'do_tracking'
+        self._write_dot_track_file(timestamp_day, dot_file = dot_file)
+
+        dot_tracking_files = glob.glob(os.path.join(self.output_directory, dot_file+'*'))
+        self.logger.debug(f"dot_tracking_files {dot_tracking_files}")
+        if len(dot_tracking_files) > 0:
+            for do_track_file in dot_tracking_files:
+                ftimestamp_day = do_track_file.split('.')[1]
+                file_search = os.path.join(
+                    self.input_directory, f"atmos_{self.um_runid}*{ftimestamp_day}??-*-slp.nc"
+                )
+                self.logger.debug(f"file_search {file_search}")
+                if len(glob.glob(file_search)) > 0:
+                    #filenames = self._generate_data_files(ftimestamp_day)
+                    self._run_steps(ftimestamp_day)
+                    # if this timestep has worked OK, then need to remove the dot_file
+                    # self.remove_dot_track_file(ftimestamp_day, dot_file = dot_file)
+                else:
+                    self.logger.error(f"no files to process for timestamp " f"{ftimestamp_day}")
+        else:
+            self.logger.error(f"no dot files to process ")
+ 
+    def _run_steps(self, timestamp):
         # Run the detection and stitching for this time period
-        candidate_files, input_files = self._run_detection()
+        candidate_files, input_files = self._run_detection(timestamp)
         tracked_files = self._run_stitching(candidate_files)
         edited_files = self._run_node_file_editor(tracked_files, input_files)
+
+        # write out netcdf files 
+        for index, track_type in enumerate(self.track_types):
+            tracked_file = tracked_files[index]
+            if os.stat(tracked_file).st_size > 0:
+                ncfile = tracked_file+'.nc'
+                nrecords = 10
+                if not os.path.exists(ncfile):
+                    self.logger.error(f"open netcdf file {ncfile}")
+                    nc_out = self._create_netcdf(self.output_directory, ncfile, nrecords,
+                      STARTDATE=timestamp, ENDDATE=timestamp, MODEL=self.um_runid)
 
         # Run the plotting for this time period (if required and
         # data available)
@@ -97,7 +140,7 @@ class TempestTracker(AbstractApp):
                 self.logger.error(f"candidate file is empty " f"{candidate_file}")
 
         # Produce an annual summary if this is the first period in a year
-        if self._is_new_year():
+        if self._is_new_year(timestamp):
             annual_tracks = self._run_annual_stitch()
             if self.plot_tracks:
                 for index, track_type in enumerate(self.track_types):
@@ -105,13 +148,34 @@ class TempestTracker(AbstractApp):
                         annual_tracks[index],
                         input_files["pslfile"],
                         title_prefix=f"{self.um_runid} {self.resolution_code} "
-                        f"{self.time_cycle[:4]}",
+                        f"{timestamp[:4]}",
                         title_suffix=f"{track_type} annual tracks",
                     )
+
+            # plot annual tracks (also fills in gaps in tracks)
+            # create netcdf output file for tracks
         else:
             self.logger.debug("Not running annual stitch")
 
-    def _run_detection(self):
+        # Produce an wholerun summary if this is the end of the run
+        if self._enddate[0:8] == timestamp[0:8]:
+            wholerun_tracks = self._run_wholerun_stitch()
+            if self.plot_tracks:
+                for index, track_type in enumerate(self.track_types):
+                    self._read_and_plot_tracks(
+                        wholerun_tracks[index],
+                        input_files["pslfile"],
+                        title_prefix=f"{self.um_runid} {self.resolution_code} "
+                        f"{timestamp[:4]}",
+                        title_suffix=f"{track_type} annual tracks",
+                    )
+
+            # plot annual tracks (also fills in gaps in tracks)
+            # create netcdf output file for tracks
+        else:
+            self.logger.debug("Not running annual stitch")
+
+    def _run_detection(self, timestamp):
         """
         Run the Tempest detection.
 
@@ -121,7 +185,7 @@ class TempestTracker(AbstractApp):
         """
         self.logger.debug(f"cwd {os.getcwd()}")
 
-        filenames = self._generate_data_files()
+        filenames = self._generate_data_files(timestamp)
 
         candidate_files = []
 
@@ -129,7 +193,7 @@ class TempestTracker(AbstractApp):
             self.logger.debug(f"Runing {track_type} detection")
             candidatefile = os.path.join(
                 self.output_directory,
-                f"candidate_file_{self.cylc_task_cycle_time}_{track_type}.txt",
+                f"candidate_file_{timestamp}_{track_type}.txt",
             )
             self.logger.debug(f"candidatefile {candidatefile}")
 
@@ -205,7 +269,7 @@ class TempestTracker(AbstractApp):
 
         return tracked_files
 
-    def _run_annual_stitch(self):
+    def _run_annual_stitch(self, timestamp):
         """
         Concatenate the candidate files for the previous year together and then
         stitch this file.
@@ -216,7 +280,7 @@ class TempestTracker(AbstractApp):
 
         tracked_files = []
         for track_type in self.track_types:
-            previous_year = int(self.time_cycle[:4]) - 1
+            previous_year = int(timestamp[:4]) - 1
             candidate_pattern = os.path.join(
                 self.output_directory,
                 f"candidate_file_{previous_year}*_{track_type}.txt",
@@ -237,6 +301,42 @@ class TempestTracker(AbstractApp):
             )
             self._stitch_file(annual_candidate, annual_track, track_type)
             tracked_files.append(annual_track)
+
+        return tracked_files
+
+    def _run_wholerun_stitch(self, timestamp):
+        """
+        Concatenate the candidate files for all periods together and then
+        stitch this file.
+
+        :returns: The string paths to the annual stitched file in a list.
+        :rtype: list
+        """
+
+        tracked_files = []
+        for track_type in self.track_types:
+            start_period = int(self.startdate[:8])
+            end_period = int(self.enddate[:8])
+            candidate_pattern = os.path.join(
+                self.output_directory,
+                f"candidate_file_????????_{track_type}.txt",
+            )
+            candidate_files = sorted(glob.glob(candidate_pattern))
+            wholerun_candidate = os.path.join(
+                self.output_directory,
+                f"candidate_year_{start_period}_{end_period}_{track_type}.txt",
+            )
+            with open(wholerun_candidate, "w") as out_file:
+                for candidate_file in candidate_files:
+                    with open(candidate_file) as in_file:
+                        for line in in_file:
+                            out_file.write(line)
+
+            wholerun_track = os.path.join(
+                self.output_directory, f"track_year_{start_period}_{end_period}_{track_type}.txt"
+            )
+            self._stitch_file(wholerun_candidate, annual_track, track_type)
+            tracked_files.append(wholerun_track)
 
         return tracked_files
 
@@ -348,7 +448,7 @@ class TempestTracker(AbstractApp):
 
         return edited_files
 
-    def _is_new_year(self):
+    def _is_new_year(self, timestamp):
         """
         Check if this is the first cycle in a new year.
 
@@ -356,10 +456,28 @@ class TempestTracker(AbstractApp):
         :rtype: bool
         """
 
-        if self.time_cycle[:4] != self.previous_cycle[:4]:
+        if timestamp[:4] != self.previous_cycle[:4]:
             return True
         else:
             return False
+
+    def _write_dot_track_file(self, timestamp, dot_file = 'do_tracking'):
+        """
+        Write a file indicating that this timestep needs to be tracked
+
+        """
+        do_tracking_file = os.path.join(self.output_directory, dot_file+'.'+timestamp)
+        if not os.path.exists(do_tracking_file):
+            os.system('touch '+do_tracking_file)
+
+    def _remove_dot_track_file(self, timestamp, dot_file = 'do_tracking'):
+        """
+        Write a file indicating that this timestep needs to be tracked
+
+        """
+        do_tracking_file = os.path.join(self.output_directory, dot_file+'.'+timestamp)
+        if os.path.exists(do_tracking_file):
+            os.system('rm '+do_tracking_file)
 
     def _construct_command(self, track_type):
         """
@@ -385,7 +503,7 @@ class TempestTracker(AbstractApp):
             commands[step] = " ".join(step_arguments)
         return commands
 
-    def _generate_data_files(self):
+    def _generate_data_files(self, timestamp):
         """
         Identify and then fix the grids and var_names in the input files.
 
@@ -395,7 +513,8 @@ class TempestTracker(AbstractApp):
             containing the period between samples in the input data.
         :rtype: dict
         """
-        timestamp_day = self.cylc_task_cycle_time[:8]
+        #timestamp_day = self.cylc_task_cycle_time[:8]
+        timestamp_day = timestamp
         self.logger.debug(f"time_stamp_day {timestamp_day}")
         file_search = os.path.join(
             self.input_directory, f"atmos_{self.um_runid}*{timestamp_day}??-*-slp.nc"
@@ -578,6 +697,7 @@ class TempestTracker(AbstractApp):
         """
 
         storms = get_trajectories(tracked_file, nc_file, self.frequency)
+        self.logger.debug(f"got storms {storms}")
 
         title_components = []
         if title_prefix:
@@ -590,6 +710,7 @@ class TempestTracker(AbstractApp):
         title_full = " ".join(title_components)
 
         filename = tracked_file[:-4] + ".png"
+        self.logger.debug(f"plot storms {filename}")
         plot_trajectories_cartopy(storms, filename, title=title_full)
 
     def _get_app_options(self):
@@ -627,3 +748,147 @@ class TempestTracker(AbstractApp):
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
         self.time_cycle = os.environ["TIME_CYCLE"]
         self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
+        self.startdate = os.environ["STARTDATE"]
+        self.enddate = os.environ["ENDDATE"]
+
+    def _create_netcdf(self, directory, savefname, nrecords,
+                      STARTDATE=None, ENDDATE=None,
+                      MODEL=None):
+        """
+        Create netcdf file for the tracks. 
+        May need metadata from a model nc file, so may need to create at a time when these are available
+        """
+        print ('making netCDF of outputs')
+        
+        self.savefname = savefname
+        nc = Dataset(self.savefname, 'w', format='NETCDF4')
+        nc.title = 'Tempest TC tracks'
+        nc.directory = directory
+        #nc.HOURS_BTWN_RECORDS = np.float64(self.HOURS_BTWN_RECORDS)
+        #nc.TRACK_DURATION_MIN = np.float64(self.TRACK_DURATION_MIN)
+
+        nc.MODEL = MODEL
+        nc.YEAR_MIN = np.int32(STARTDATE[0:4])
+        nc.YEAR_MAX = np.int32(ENDDATE[0:4])
+        nc.MON_MIN = np.int32(STARTDATE[4:6])
+        nc.MON_MAX = np.int32(ENDDATE[4:6])
+        calendar = '360_day'
+
+        nc.createDimension('tracks', size=None) # unlimited
+        nc.createDimension('record', size = nrecords)
+
+        nc.createVariable('first_pt', np.int32, ('tracks'), fill_value=self.FILLVAL)   
+        nc.createVariable('num_pts', np.int32, ('tracks'), fill_value=self.FILLVAL)  
+        nc.createVariable('track_id', np.int32, ('tracks'), fill_value=self.FILLVAL)  
+        nc.createVariable('index', np.int32, ('record'), fill_value=self.FILLVAL)  
+        nc.createVariable('time', 'f8', ('record'), fill_value=self.FILLVAL)
+        nc.createVariable('lon', 'f4', ('record'), fill_value=self.FILLVAL)
+        nc.createVariable('lat', 'f4', ('record'), fill_value=self.FILLVAL)
+        nc.createVariable('slp', 'f4', ('record'), fill_value=self.FILLVAL)
+        nc.createVariable('wind10m', 'f4', ('record'), fill_value=self.FILLVAL)
+        nc.createVariable('surface_altitude', 'f4', ('record'), fill_value=self.FILLVAL)
+
+        nc.variables['first_pt'].units = 'ordinal'
+        #nc.variables['first_pt'].min_val = np.int32(0)
+        #nc.variables['first_pt'].max_val = np.int32(0)
+        nc.variables['first_pt'].long_name = 'first_pt'
+        nc.variables['first_pt'].description = 'Index to first point of this track number'
+
+        nc.variables['num_pts'].units = 'ordinal'
+        nc.variables['num_pts'].long_name = 'num_pts'
+        # Add option here to set length of intervals.....
+        nc.variables['num_pts'].description = 'Number of points for this track'
+
+        nc.variables['track_id'].units = 'ordinal'
+        nc.variables['track_id'].long_name = 'track_id'
+        nc.variables['track_id'].description = 'Tropical cyclone track number'
+
+        nc.variables['index'].units = 'ordinal'
+        nc.variables['index'].long_name = 'track_id'
+        nc.variables['index'].description = 'Track sequence number (0 - length of track - 1)'
+
+        nc.variables['lat'].units = 'degrees_north'
+        nc.variables['lat'].standard_name = 'latitude'
+        nc.variables['lat'].long_name = 'latitude'
+        nc.variables['lat'].description = 'Latitude (degrees north) associated with tracked variable'
+
+        nc.variables['lon'].units = 'degrees_east'
+        nc.variables['lon'].standard_name = 'longitude'
+        nc.variables['lon'].long_name = 'longitude'
+        nc.variables['lon'].description = 'Longitude (degrees east) associated with tracked variable'
+
+        time_units = 'days since 1950-01-01'
+        nc.variables['time'].units = time_units
+        nc.variables['time'].calendar = calendar
+        nc.variables['time'].standard_name = 'time'
+        nc.variables['time'].long_name = 'time'
+
+        nc.variables['slp'].units = 'hPa'
+        nc.variables['slp'].missing_value = 1.0e+25
+        nc.variables['slp'].standard_name = 'air_pressure_at_mean_sea_level'
+        nc.variables['slp'].long_name = 'Sea Level Pressure'
+        nc.variables['slp'].description = 'Sea level pressure for tracked variable'
+
+        nc.variables['wind10m'].units = 'm s-1'
+        nc.variables['wind10m'].missing_value = 1.0e+25
+        nc.variables['wind10m'].standard_name = 'awind_speed'
+        nc.variables['wind10m'].long_name = 'Near-surface Wind Speed'
+        nc.variables['wind10m'].description = 'near-surface (usually 10 metres) wind speed'
+
+        nc.close()
+
+    def _write2netcdf(self, rtime, stopper=0):
+        """
+        Write tracks to netcdf file - for the original ocean eddy code, the inactive (finished) eddies were written, not quite sure the equivalent here.
+        'ncind' is important because prevents writing of
+        already written tracks.
+        Each inactive track is 'emptied' after saving
+        
+        rtime - current timestamp
+        stopper - dummy value (either 0 or 1)
+        """
+        print ('Writing to netCDF')
+        
+        rtime += stopper
+        tracks2save = np.array([self.get_inactive_tracks(rtime)])
+        HBR = self.HOURS_BTWN_RECORDS
+
+        if tracks2save.any(): 
+
+            with Dataset(self.savedir, 'a') as nc:
+
+                for i in np.nditer(tracks2save):
+
+                    # saved2nc is a flag indicating if track[i] has been saved
+                    if (not self.tracklist[i].saved2nc) and \
+                       (np.all(self.tracklist[i].ocean_time)):
+
+                        tsize = len(self.tracklist[i].lon)
+
+                        if (tsize >= self.TRACK_DURATION_MIN / HBR) and tsize >= 1.:
+                            lon = np.array([self.tracklist[i].lon])
+                            lat = np.array([self.tracklist[i].lat])
+                            slp = np.array([self.tracklist[i].slp])
+                            wind10m = np.array([self.tracklist[i].wind10m])
+                            track = np.full(tsize, self.ch_index, dtype=np.int32)
+                            num_pts = np.arange(tsize, dtype=np.int32)
+                            first_pt = np.arange(tsize, dtype=np.int32)
+                            track_id = np.arange(tsize, dtype=np.int32)
+                            time = np.array([self.tracklist[i].time])
+                            #time = num2date(time, units = \
+                            #    nc.variables['time'].units, \
+                            #    calendar = nc.variables['time'].calendar)
+
+
+                            tend = self.ncind + tsize
+                            nc.variables['lon'][self.ncind:tend] = lon
+                            nc.variables['lat'][self.ncind:tend] = lat
+                            nc.variables['slp'][self.ncind:tend] = lp
+                            nc.variables['time'][self.ncind:tend] = time
+
+                            self.tracklist[i].saved2nc = True
+                            self.ncind += tsize
+                            self.ch_index += 1
+                            nc.sync()
+
+ 

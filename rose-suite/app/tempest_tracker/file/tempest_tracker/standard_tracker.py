@@ -74,6 +74,9 @@ class TempestTracker(AbstractApp):
         # for um postproc nc files, these take form 
         timestamp_day = self.cylc_task_cycle_time[:8]
         self.logger.debug(f"time_stamp_day {timestamp_day}")
+        self.logger.debug(f"startdate {self.startdate}")
+        self.logger.debug(f"enddate {self.enddate}")
+        self.logger.debug(f"Last cycle {self.lastcycle}")
 
         dot_file = 'do_tracking'
         self._write_dot_track_file(timestamp_day, dot_file = dot_file)
@@ -83,8 +86,11 @@ class TempestTracker(AbstractApp):
         if len(dot_tracking_files) > 0:
             for do_track_file in dot_tracking_files:
                 ftimestamp_day = do_track_file.split('.')[1]
+                #fname = self.um_file_pattern.format(self.um_runid, '*', ftimestamp_day+'??', '*', '*', 'slp')
+                fname = self._file_pattern(ftimestamp_day+'*', '*', 'slp', um_stream = 'pt')
+                self.logger.debug(f"fname {fname}")
                 file_search = os.path.join(
-                    self.input_directory, f"atmos_{self.um_runid}*{ftimestamp_day}??-*-slp.nc"
+                    self.input_directory, fname
                 )
                 self.logger.debug(f"file_search {file_search}")
                 if len(glob.glob(file_search)) > 0:
@@ -141,7 +147,7 @@ class TempestTracker(AbstractApp):
 
         # Produce an annual summary if this is the first period in a year
         if self._is_new_year(timestamp):
-            annual_tracks = self._run_annual_stitch()
+            annual_tracks = self._run_annual_stitch(timestamp)
             if self.plot_tracks:
                 for index, track_type in enumerate(self.track_types):
                     self._read_and_plot_tracks(
@@ -157,8 +163,11 @@ class TempestTracker(AbstractApp):
         else:
             self.logger.debug("Not running annual stitch")
 
+        self.logger.debug(f"startdate {self.startdate}")
+        self.logger.debug(f"enddate {self.enddate}")
+        self.logger.debug(f"Last cycle {self.lastcycle}")
         # Produce an wholerun summary if this is the end of the run
-        if self._enddate[0:8] == timestamp[0:8]:
+        if self.lastcycle[0:8] == timestamp[0:8]:
             wholerun_tracks = self._run_wholerun_stitch()
             if self.plot_tracks:
                 for index, track_type in enumerate(self.track_types):
@@ -166,14 +175,14 @@ class TempestTracker(AbstractApp):
                         wholerun_tracks[index],
                         input_files["pslfile"],
                         title_prefix=f"{self.um_runid} {self.resolution_code} "
-                        f"{timestamp[:4]}",
-                        title_suffix=f"{track_type} annual tracks",
+                        f"{self.startdate[:8]} - {self.enddate[:8]}",
+                        title_suffix=f"{track_type} wholerun tracks",
                     )
 
             # plot annual tracks (also fills in gaps in tracks)
             # create netcdf output file for tracks
         else:
-            self.logger.debug("Not running annual stitch")
+            self.logger.debug("Not running wholerun stitch")
 
     def _run_detection(self, timestamp):
         """
@@ -304,7 +313,7 @@ class TempestTracker(AbstractApp):
 
         return tracked_files
 
-    def _run_wholerun_stitch(self, timestamp):
+    def _run_wholerun_stitch(self):
         """
         Concatenate the candidate files for all periods together and then
         stitch this file.
@@ -335,7 +344,7 @@ class TempestTracker(AbstractApp):
             wholerun_track = os.path.join(
                 self.output_directory, f"track_year_{start_period}_{end_period}_{track_type}.txt"
             )
-            self._stitch_file(wholerun_candidate, annual_track, track_type)
+            self._stitch_file(wholerun_candidate, wholerun_track, track_type)
             tracked_files.append(wholerun_track)
 
         return tracked_files
@@ -479,6 +488,32 @@ class TempestTracker(AbstractApp):
         if os.path.exists(do_tracking_file):
             os.system('rm '+do_tracking_file)
 
+    def _file_pattern(self, timestart, timeend, varname, um_stream = 'pt', frequency = '6h'):
+        """
+        Derive the input nc filenames from the file pattern 
+        can be um as here, or could be other patterns for other models/platforms
+
+        :returns: a filename given the inputs to the pattern
+        :rtype: str
+        """
+        if self.frequency == None:
+            file_freq = frequency
+        else:
+            file_freq = str(self.frequency)+'h'
+
+        if self.um_file_pattern != '':
+            #trange = timestart+'*-'+timeend+'*'
+            fname = self.um_file_pattern.format(
+                self.um_runid,
+                file_freq,
+                timestart, 
+                timeend,
+                um_stream,
+                varname
+        )
+        return fname
+            
+
     def _construct_command(self, track_type):
         """
         Read the TempestExtreme command line parameters from the configuration.
@@ -513,11 +548,11 @@ class TempestTracker(AbstractApp):
             containing the period between samples in the input data.
         :rtype: dict
         """
-        #timestamp_day = self.cylc_task_cycle_time[:8]
         timestamp_day = timestamp
         self.logger.debug(f"time_stamp_day {timestamp_day}")
+        fname = self._file_pattern(timestamp_day+'*', '*', 'slp', um_stream = 'pt')
         file_search = os.path.join(
-            self.input_directory, f"atmos_{self.um_runid}*{timestamp_day}??-*-slp.nc"
+            self.input_directory, fname
         )
         self.logger.debug(f"file_search {file_search}")
         files = sorted(glob.glob(file_search))
@@ -609,24 +644,12 @@ class TempestTracker(AbstractApp):
         variables_required["viwvnfile"] = {"fname": "viwvn", "varname_new": "viwvn"}
         variables_required["tafile"] = {"fname": "ta", "varname_new": "ta"}
 
-        filename_format = "atmos_{}a_{}h_{}_pt-{}.nc"
-
-        reference_name = filename_format.format(
-            self.um_runid,
-            self.frequency,
-            self.time_range,
-            variables_required["pslfile"]["fname"],
-        )
+        reference_name = self._file_pattern(self.time_range.split('-')[0], self.time_range.split('-')[1], variables_required["pslfile"]["fname"], um_stream = 'pt')
         reference_path = os.path.join(self.input_directory, reference_name)
         reference = iris.load_cube(reference_path)
 
         for filetype in filetypes_required:
-            filename = filename_format.format(
-                self.um_runid,
-                self.frequency,
-                self.time_range,
-                variables_required[filetype]["fname"],
-            )
+            filename = self._file_pattern(self.time_range.split('-')[0], self.time_range.split('-')[1], variables_required[filetype]["fname"], um_stream = 'pt')
 
             input_path = os.path.join(self.input_directory, filename)
             if not os.path.exists(input_path):
@@ -711,7 +734,10 @@ class TempestTracker(AbstractApp):
 
         filename = tracked_file[:-4] + ".png"
         self.logger.debug(f"plot storms {filename}")
-        plot_trajectories_cartopy(storms, filename, title=title_full)
+        try:
+            plot_trajectories_cartopy(storms, filename, title=title_full)
+        except:
+            self.logger.debug(f"Error from plotting trajectories ")
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""
@@ -737,6 +763,7 @@ class TempestTracker(AbstractApp):
         self.plot_tracks = self.app_config.get_bool_property("common", "plot_tracks")
         # track_types is a Python list so eval converts str to list
         self.track_types = eval(self.app_config.get_property("common", "track_types"))
+        self.um_file_pattern = self.app_config.get_property("common", "um_file_pattern")
 
     def _get_environment_variables(self):
         """
@@ -750,6 +777,7 @@ class TempestTracker(AbstractApp):
         self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
         self.startdate = os.environ["STARTDATE"]
         self.enddate = os.environ["ENDDATE"]
+        self.lastcycle = os.environ["LASTCYCLE"]
 
     def _create_netcdf(self, directory, savefname, nrecords,
                       STARTDATE=None, ENDDATE=None,

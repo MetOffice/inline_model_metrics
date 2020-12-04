@@ -9,6 +9,7 @@ import sys
 
 from netCDF4 import Dataset
 import numpy as np
+from cftime import utime, datetime
 import iris
 
 from afterburner.apps import AbstractApp
@@ -35,7 +36,11 @@ class TempestTracker(AbstractApp):
         self.time_range = None
         self.frequency = None
         self.resolution_code = None
+        self.cmd_detect = None
+        self.cmd_stitch = None
+        self.cmd_edit = None
         self.FILLVAL = 9999
+        self.calendar_units = 'days since 1950-01-01 00:00:00'
 
     @property
     def cli_spec(self):
@@ -86,7 +91,6 @@ class TempestTracker(AbstractApp):
         if len(dot_tracking_files) > 0:
             for do_track_file in dot_tracking_files:
                 ftimestamp_day = do_track_file.split('.')[1]
-                #fname = self.um_file_pattern.format(self.um_runid, '*', ftimestamp_day+'??', '*', '*', 'slp')
                 fname = self._file_pattern(ftimestamp_day+'*', '*', 'slp', um_stream = 'pt')
                 self.logger.debug(f"fname {fname}")
                 file_search = os.path.join(
@@ -94,7 +98,6 @@ class TempestTracker(AbstractApp):
                 )
                 self.logger.debug(f"file_search {file_search}")
                 if len(glob.glob(file_search)) > 0:
-                    #filenames = self._generate_data_files(ftimestamp_day)
                     self._run_steps(ftimestamp_day)
                     # if this timestep has worked OK, then need to remove the dot_file
                     # self.remove_dot_track_file(ftimestamp_day, dot_file = dot_file)
@@ -109,17 +112,6 @@ class TempestTracker(AbstractApp):
         tracked_files = self._run_stitching(candidate_files)
         edited_files = self._run_node_file_editor(tracked_files, input_files)
 
-        # write out netcdf files 
-        for index, track_type in enumerate(self.track_types):
-            tracked_file = tracked_files[index]
-            if os.stat(tracked_file).st_size > 0:
-                ncfile = tracked_file+'.nc'
-                nrecords = 10
-                if not os.path.exists(ncfile):
-                    self.logger.error(f"open netcdf file {ncfile}")
-                    nc_out = self._create_netcdf(self.output_directory, ncfile, nrecords,
-                      STARTDATE=timestamp, ENDDATE=timestamp, MODEL=self.um_runid)
-
         # Run the plotting for this time period (if required and
         # data available)
         for index, track_type in enumerate(self.track_types):
@@ -132,10 +124,13 @@ class TempestTracker(AbstractApp):
 
                         self._read_and_plot_tracks(
                             tracked_file,
-                            input_files["pslfile"],
+                            input_files["slp"],
+                            self.time_range.split('-')[0],
+                            self.time_range.split('-')[1],
                             title_prefix=f"{self.um_runid} {self.resolution_code} "
                             f"{self.time_range}",
                             title_suffix=f"{track_type} tracks",
+                            write_to_netcdf = True
                         )
                 else:
                     self.logger.error(
@@ -152,10 +147,13 @@ class TempestTracker(AbstractApp):
                 for index, track_type in enumerate(self.track_types):
                     self._read_and_plot_tracks(
                         annual_tracks[index],
-                        input_files["pslfile"],
+                        input_files["slp"],
+                        timestamp[:4]+'0101',
+                        timestamp[:4]+'1231',
                         title_prefix=f"{self.um_runid} {self.resolution_code} "
                         f"{timestamp[:4]}",
                         title_suffix=f"{track_type} annual tracks",
+                        write_to_netcdf = True
                     )
 
             # plot annual tracks (also fills in gaps in tracks)
@@ -163,9 +161,6 @@ class TempestTracker(AbstractApp):
         else:
             self.logger.debug("Not running annual stitch")
 
-        self.logger.debug(f"startdate {self.startdate}")
-        self.logger.debug(f"enddate {self.enddate}")
-        self.logger.debug(f"Last cycle {self.lastcycle}")
         # Produce an wholerun summary if this is the end of the run
         if self.lastcycle[0:8] == timestamp[0:8]:
             wholerun_tracks = self._run_wholerun_stitch()
@@ -173,14 +168,14 @@ class TempestTracker(AbstractApp):
                 for index, track_type in enumerate(self.track_types):
                     self._read_and_plot_tracks(
                         wholerun_tracks[index],
-                        input_files["pslfile"],
+                        input_files["slp"],
+                        self.startdate[:8],
+                        self.enddate[:8],
                         title_prefix=f"{self.um_runid} {self.resolution_code} "
                         f"{self.startdate[:8]} - {self.enddate[:8]}",
                         title_suffix=f"{track_type} wholerun tracks",
+                        write_to_netcdf = True
                     )
-
-            # plot annual tracks (also fills in gaps in tracks)
-            # create netcdf output file for tracks
         else:
             self.logger.debug("Not running wholerun stitch")
 
@@ -206,32 +201,14 @@ class TempestTracker(AbstractApp):
             )
             self.logger.debug(f"candidatefile {candidatefile}")
 
-            if not self.extended_files:
-                # identify candidates
-                # TODO there is a file difference here with the run version
-                cmd_io = '{} --in_data "{};{};{};{};{}" --out {} '.format(
+            cmd_io = '{} --out {} '.format(
                     self.tc_detect_script,
-                    filenames["pslfile"],
-                    filenames["zgfile"],
-                    filenames["ufile"],
-                    filenames["vfile"],
-                    filenames["topofile"],
-                    candidatefile,
-                )
-            else:
-                cmd_io = '{} --in_data "{};{};{};{};{};{}" ' "--out {} ".format(
-                    self.tc_detect_script,
-                    filenames["pslfile"],
-                    filenames["zgfile"],
-                    filenames["u10mfile"],
-                    filenames["v10mfile"],
-                    filenames["rvT63file"],
-                    filenames["topofile"],
-                    candidatefile,
-                )
+                    candidatefile)
+            cmd_io += '--in_data "'+';'.join(filenames[r] for r in filenames)+'" '
 
             tracking_phase_commands = self._construct_command(track_type)
             cmd_detect = cmd_io + tracking_phase_commands["detect"]
+            self.cmd_detect = cmd_detect
             self.logger.info(f"Detect command {cmd_detect}")
 
             sts = subprocess.run(
@@ -267,7 +244,7 @@ class TempestTracker(AbstractApp):
         tracked_files = []
 
         for index, track_type in enumerate(self.track_types):
-            self.logger.debug(f"Runing {track_type} stitching")
+            self.logger.debug(f"Running {track_type} stitching")
 
             candidatefile = candidate_files[index]
             trackedfile = os.path.join(
@@ -367,6 +344,7 @@ class TempestTracker(AbstractApp):
             self.tc_stitch_script, candidate_file, tracked_file
         )
         cmd_stitch = cmd_stitch_io + tracking_phase_commands["stitch"]
+        self.cmd_stitch = cmd_stitch
         self.logger.info(f"Stitch command {cmd_stitch}")
         sts = subprocess.run(
             cmd_stitch,
@@ -399,44 +377,14 @@ class TempestTracker(AbstractApp):
             tracked_file = tracked_files[index]
             edited_file = tracked_file[:-4] + "_edited_profile.txt"
 
-            if not self.extended_files:
-                cmd_io = (
-                    '{} --in_data "{};{};{};{};{}" --in_nodefile {} '
-                    "--out_nodefile {} ".format(
-                        self.tc_editor_script,
-                        input_files["pslfile"],
-                        input_files["zgfile"],
-                        input_files["u10mfile"],
-                        input_files["v10mfile"],
-                        input_files["topofile"],
-                        tracked_file,
-                        edited_file,
-                    )
-                )
-            else:
-                cmd_io = (
-                    '{} --in_data "{};{};{};{};{};{};{};{};{};{};{};'
-                    '{};{}" in_nodefile {} --out_nodefile {} '.format(
-                        self.tc_editor_script,
-                        input_files["pslfile"],
-                        input_files["zgfile"],
-                        input_files["ufile"],
-                        input_files["vfile"],
-                        input_files["rvfile"],
-                        input_files["u10mfile"],
-                        input_files["v10mfile"],
-                        input_files["ws10mfile"],
-                        input_files["viwvefile"],
-                        input_files["viwvnfile"],
-                        input_files["tafile"],
-                        input_files["rvT63file"],
-                        input_files["topofile"],
-                        tracked_file,
-                        edited_file,
-                    )
-                )
+            cmd_io = '{} --in_nodefile {} --out_nodefile {} '.format(
+                    self.tc_editor_script,
+                    tracked_file,
+                    edited_file)
+            cmd_io += '--in_data "'+';'.join(input_files[r] for r in input_files)+'" '
 
             cmd_edit = cmd_io + tracking_phase_commands["profile"]
+            self.cmd_edit = cmd_edit
             self.logger.info(f"Editor command {cmd_edit}")
 
             sts = subprocess.run(
@@ -502,7 +450,6 @@ class TempestTracker(AbstractApp):
             file_freq = str(self.frequency)+'h'
 
         if self.um_file_pattern != '':
-            #trange = timestart+'*-'+timeend+'*'
             fname = self.um_file_pattern.format(
                 self.um_runid,
                 file_freq,
@@ -613,38 +560,18 @@ class TempestTracker(AbstractApp):
             containing the period between samples in the input data.
         :rtype: dict
         """
-        filetypes_required = [
-            "pslfile",
-            "zgfile",
-            "ufile",
-            "vfile",
-            "ws10mfile",
-            "rvfile",
-            "rvT63file",
-            "u10mfile",
-            "u10mfile",
-            "v10mfile",
-            "viwvefile",
-            "viwvnfile",
-            "tafile",
-        ]
+        filetypes_required = self.variables_input
         processed_filenames = {}
 
         variables_required = {}
-        variables_required["pslfile"] = {"fname": "slp"}
-        variables_required["zgfile"] = {"fname": "zg", "varname_new": "zg"}
-        variables_required["ufile"] = {"fname": "ua"}
-        variables_required["vfile"] = {"fname": "va"}
-        variables_required["ws10mfile"] = {"fname": "wsas"}
-        variables_required["rvfile"] = {"fname": "rv", "varname_new": "rv"}
-        variables_required["rvT63file"] = {"fname": "rvT63", "varname_new": "rvT63"}
-        variables_required["u10mfile"] = {"fname": "u10m", "varname_new": "uas"}
-        variables_required["v10mfile"] = {"fname": "v10m", "varname_new": "vas"}
-        variables_required["viwvefile"] = {"fname": "viwve", "varname_new": "viwve"}
-        variables_required["viwvnfile"] = {"fname": "viwvn", "varname_new": "viwvn"}
-        variables_required["tafile"] = {"fname": "ta", "varname_new": "ta"}
+        # these variables need to have a new var_name, either because the default from the UM is confusing or unknown, and these names are needed for the inputs
+        variables_rename = ['zg', 'rv', 'rvT63', 'uas', 'vas', 'viwve', 'viwvn', 'ta']
+        for var in self.variables_input:
+            variables_required[var] = {'fname': var}
+            if var in variables_rename:
+                variables_required[var].update({'varname_new': var})
 
-        reference_name = self._file_pattern(self.time_range.split('-')[0], self.time_range.split('-')[1], variables_required["pslfile"]["fname"], um_stream = 'pt')
+        reference_name = self._file_pattern(self.time_range.split('-')[0], self.time_range.split('-')[1], variables_required["slp"]["fname"], um_stream = 'pt')
         reference_path = os.path.join(self.input_directory, reference_name)
         reference = iris.load_cube(reference_path)
 
@@ -659,30 +586,17 @@ class TempestTracker(AbstractApp):
 
             output_path = os.path.join(self.output_directory, filename)
 
-            if variables_required[filetype]["fname"] in [
-                "ua",
-                "va",
-                "wsas",
-                "rv",
-                "rvT63",
-                "u10m",
-                "v10m",
-            ]:
+            # apart from slp, regrid the data to the slp grid (all input data for TempestExtremes needs to be on the same grid)
+            if 'slp' in filetype:
+                if not os.path.exists(output_path):
+                    shutil.copyfile(input_path, output_path)
+            else:
                 # regrid u and v to t grid and rename variable if necessary
                 cube = iris.load_cube(input_path)
                 regridded = cube.regrid(reference, iris.analysis.Linear())
                 if "varname_new" in variables_required[filetype]:
                     regridded.var_name = variables_required[filetype]["varname_new"]
                 iris.save(regridded, output_path)
-            elif variables_required[filetype]["fname"] in ["ta", "zg"]:
-                # rename variables only - could do with ncrename instead
-                cube = iris.load_cube(input_path)
-                if "varname_new" in variables_required[filetype]:
-                    cube.var_name = variables_required[filetype]["varname_new"]
-                iris.save(cube, output_path)
-            else:
-                if not os.path.exists(output_path):
-                    shutil.copyfile(input_path, output_path)
 
             processed_filenames[filetype] = output_path
 
@@ -701,10 +615,13 @@ class TempestTracker(AbstractApp):
     def _read_and_plot_tracks(
         self,
         tracked_file,
-        nc_file,
+        nc_file_in,
+        timestart,
+        timeend,
         title_prefix="",
         title_suffix="TempestExtremes TCs",
         include_num_tracks=True,
+        write_to_netcdf=False
     ):
         """
         Read and then plot the tracks. The title is the specified prefix, the
@@ -714,13 +631,27 @@ class TempestTracker(AbstractApp):
         :param str nc_file: The path to an input data netCDF file, which is
             used to gather additional information about the dates and calendars
             used in the data.
-        :param str title_suffix: The title for the plot.
+        :param str title_prefix: The title for the plot.
         :param str title_suffix: The title for the plot.
         :param bool include_num_tracks: Include the number of tracks loaded?
         """
 
-        storms = get_trajectories(tracked_file, nc_file, self.frequency)
+        # storms returned as dictionary with keys: length, lon, lat, year, month, day, hour, step
+        storms = get_trajectories(tracked_file, nc_file_in, self.frequency)
         self.logger.debug(f"got storms {storms}")
+
+        # write the storms to a netcdf file
+        if write_to_netcdf:
+        # write out netcdf files 
+            with Dataset(nc_file_in, 'r') as x:
+                time = x.variables['time']
+                calendar = time.calendar
+                units = self.calendar_units
+            nc_file_out = self.um_runid+'_'+tracked_file[:-4]+'.nc'
+            nc_file_out = os.path.join(os.path.dirname(tracked_file), self.um_runid+'_'+os.path.basename(tracked_file)[:-4]+'.nc')
+            self.logger.error(f"open netcdf file {nc_file_out}")
+            self._create_netcdf(self.output_directory, nc_file_out, storms, calendar, units,
+                                    startperiod=timestart, endperiod=timeend)
 
         title_components = []
         if title_prefix:
@@ -755,7 +686,7 @@ class TempestTracker(AbstractApp):
         self.tc_editor_script = self.app_config.get_property(
             "common", "tc_editor_script"
         )
-        self.psl_std_name = self.app_config.get_property("common", "psl_std_name")
+        self.slp_std_name = self.app_config.get_property("common", "slp_std_name")
         self.orography_dir = self.app_config.get_property("common", "orography_dir")
         self.extended_files = self.app_config.get_bool_property(
             "common", "extended_files"
@@ -763,6 +694,8 @@ class TempestTracker(AbstractApp):
         self.plot_tracks = self.app_config.get_bool_property("common", "plot_tracks")
         # track_types is a Python list so eval converts str to list
         self.track_types = eval(self.app_config.get_property("common", "track_types"))
+        # variables is a Python list so eval converts str to list
+        self.variables_input = eval(self.app_config.get_property("common", "variables_input"))
         self.um_file_pattern = self.app_config.get_property("common", "um_file_pattern")
 
     def _get_environment_variables(self):
@@ -772,6 +705,7 @@ class TempestTracker(AbstractApp):
         documentation.
         """
         self.um_runid = os.environ["RUNID"]
+        self.um_suiteid= os.environ["CYLC_SUITE_NAME"]
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
         self.time_cycle = os.environ["TIME_CYCLE"]
         self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
@@ -779,9 +713,8 @@ class TempestTracker(AbstractApp):
         self.enddate = os.environ["ENDDATE"]
         self.lastcycle = os.environ["LASTCYCLE"]
 
-    def _create_netcdf(self, directory, savefname, nrecords,
-                      STARTDATE=None, ENDDATE=None,
-                      MODEL=None):
+    def _create_netcdf(self, directory, savefname, storms, calendar, time_units,
+                      startperiod=None, endperiod=None):
         """
         Create netcdf file for the tracks. 
         May need metadata from a model nc file, so may need to create at a time when these are available
@@ -792,22 +725,31 @@ class TempestTracker(AbstractApp):
         nc = Dataset(self.savefname, 'w', format='NETCDF4')
         nc.title = 'Tempest TC tracks'
         nc.directory = directory
-        #nc.HOURS_BTWN_RECORDS = np.float64(self.HOURS_BTWN_RECORDS)
+        nc.tracked_data_frequency = self.frequency
         #nc.TRACK_DURATION_MIN = np.float64(self.TRACK_DURATION_MIN)
 
-        nc.MODEL = MODEL
-        nc.YEAR_MIN = np.int32(STARTDATE[0:4])
-        nc.YEAR_MAX = np.int32(ENDDATE[0:4])
-        nc.MON_MIN = np.int32(STARTDATE[4:6])
-        nc.MON_MAX = np.int32(ENDDATE[4:6])
-        calendar = '360_day'
+        nc.mo_runid = self.um_suiteid
+        nc.grid = self.resolution_code
+        nc.start_date = startperiod
+        nc.end_date = endperiod
+        nc.institution_id = 'MOHC'
+        nc.algorithm = 'TempestExtremes_v2'
+        nc.algorithm_ref = 'Ullrich and Zarzycki 2017; Zarzycki and Ullrich 2017; Ullrich et al. 2020'
+        nc.detect_cmd = self.cmd_detect
+        nc.stitch_cmd = self.cmd_stitch
 
-        nc.createDimension('tracks', size=None) # unlimited
-        nc.createDimension('record', size = nrecords)
+        record_length = 0; tracks = 0
+        for storm in storms:
+            tracks += 1
+            storm_length = storm['length']
+            record_length += storm_length
 
-        nc.createVariable('first_pt', np.int32, ('tracks'), fill_value=self.FILLVAL)   
-        nc.createVariable('num_pts', np.int32, ('tracks'), fill_value=self.FILLVAL)  
-        nc.createVariable('track_id', np.int32, ('tracks'), fill_value=self.FILLVAL)  
+        nc.createDimension('tracks', size = tracks) # unlimited
+        nc.createDimension('record', size = record_length)
+
+        nc.createVariable('FIRST_PT', np.int32, ('tracks'), fill_value=self.FILLVAL)   
+        nc.createVariable('NUM_PTS', np.int32, ('tracks'), fill_value=self.FILLVAL)  
+        nc.createVariable('TRACK_ID', np.int32, ('tracks'), fill_value=self.FILLVAL)  
         nc.createVariable('index', np.int32, ('record'), fill_value=self.FILLVAL)  
         nc.createVariable('time', 'f8', ('record'), fill_value=self.FILLVAL)
         nc.createVariable('lon', 'f4', ('record'), fill_value=self.FILLVAL)
@@ -816,20 +758,20 @@ class TempestTracker(AbstractApp):
         nc.createVariable('wind10m', 'f4', ('record'), fill_value=self.FILLVAL)
         nc.createVariable('surface_altitude', 'f4', ('record'), fill_value=self.FILLVAL)
 
-        nc.variables['first_pt'].units = 'ordinal'
+        nc.variables['FIRST_PT'].units = 'ordinal'
         #nc.variables['first_pt'].min_val = np.int32(0)
         #nc.variables['first_pt'].max_val = np.int32(0)
-        nc.variables['first_pt'].long_name = 'first_pt'
-        nc.variables['first_pt'].description = 'Index to first point of this track number'
+        nc.variables['FIRST_PT'].long_name = 'first_pt'
+        nc.variables['FIRST_PT'].description = 'Index to first point of this track number'
 
-        nc.variables['num_pts'].units = 'ordinal'
-        nc.variables['num_pts'].long_name = 'num_pts'
+        nc.variables['NUM_PTS'].units = 'ordinal'
+        nc.variables['NUM_PTS'].long_name = 'num_pts'
         # Add option here to set length of intervals.....
-        nc.variables['num_pts'].description = 'Number of points for this track'
+        nc.variables['NUM_PTS'].description = 'Number of points for this track'
 
-        nc.variables['track_id'].units = 'ordinal'
-        nc.variables['track_id'].long_name = 'track_id'
-        nc.variables['track_id'].description = 'Tropical cyclone track number'
+        nc.variables['TRACK_ID'].units = 'ordinal'
+        nc.variables['TRACK_ID'].long_name = 'track_id'
+        nc.variables['TRACK_ID'].description = 'Tropical cyclone track number'
 
         nc.variables['index'].units = 'ordinal'
         nc.variables['index'].long_name = 'track_id'
@@ -845,7 +787,6 @@ class TempestTracker(AbstractApp):
         nc.variables['lon'].long_name = 'longitude'
         nc.variables['lon'].description = 'Longitude (degrees east) associated with tracked variable'
 
-        time_units = 'days since 1950-01-01'
         nc.variables['time'].units = time_units
         nc.variables['time'].calendar = calendar
         nc.variables['time'].standard_name = 'time'
@@ -859,9 +800,52 @@ class TempestTracker(AbstractApp):
 
         nc.variables['wind10m'].units = 'm s-1'
         nc.variables['wind10m'].missing_value = 1.0e+25
-        nc.variables['wind10m'].standard_name = 'awind_speed'
+        nc.variables['wind10m'].standard_name = 'wind_speed'
         nc.variables['wind10m'].long_name = 'Near-surface Wind Speed'
         nc.variables['wind10m'].description = 'near-surface (usually 10 metres) wind speed'
+
+        nc.variables['surface_altitude'].units = 'm'
+        nc.variables['surface_altitude'].missing_value = 1.0e+25
+        nc.variables['surface_altitude'].standard_name = 'surface_altitude'
+        nc.variables['surface_altitude'].long_name = 'Surface Altitude'
+        nc.variables['surface_altitude'].description = 'Surface altitude (height above sea level)'
+
+        # read the storms and write the values to the file
+        # track: first_pt, num_pts, track_id
+        # record: lat, lon, time, slp, index(0:tracklen-1)
+        first_pt = []; num_pts = []; track_id = []
+        lon = []; lat = []; time = []; index = []
+        first_pt_index = 0
+        for ist, storm in enumerate(storms):
+            first_pt.append(first_pt_index)
+            num_pts.append(storm['length'])
+            track_id.append(ist)
+            first_pt_index += storm['length']
+
+            for ipt in range(storm['length']):
+                tunit = utime(time_units, calendar = calendar)
+                t1 = tunit.date2num(datetime(storm['year'][ipt], storm['month'][ipt], storm['day'][ipt], storm['hour'][ipt]))
+                time.append(t1)
+                index.append(ipt)
+                lon.append(storm['lon'][ipt])
+                lat.append(storm['lat'][ipt])
+        
+        self.logger.debug(f"first_pt {first_pt} ")
+        self.logger.debug(f"tracks, record_length {tracks} {record_length} ")
+        self.logger.debug(f"len(first_pt) {len(first_pt)} ")
+        self.logger.debug(f"len(lon) {len(lon)} ")
+        self.logger.debug(f"lon {lon} ")
+        # now write variables to netcdf 
+        nc.variables['FIRST_PT'][:] = first_pt
+        nc.variables['NUM_PTS'][:] = num_pts
+        nc.variables['TRACK_ID'][:] = track_id
+        nc.variables['index'][:] = index
+        nc.variables['lon'][:] = lon
+        nc.variables['lat'][:] = lat
+        nc.variables['time'][:] = time
+        nc.variables['slp'][:] = lon
+        nc.variables['wind10m'][:] = lon
+        nc.variables['surface_altitude'][:] = lon
 
         nc.close()
 

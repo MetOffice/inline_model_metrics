@@ -704,8 +704,16 @@ class TempestTracker(AbstractApp):
         """
 
         # storms returned as dictionary with keys: length, lon, lat, year, month, day, hour, step
-        storms = get_trajectories(tracked_file, nc_file_in, self.frequency)
-        self.logger.debug(f"got storms {storms}")
+        # if we define extra output variables, then need to define their coordinate position so that we can read them into the storm variable
+        coords_new = {}
+        if self.output_vars_extra != None:
+            for ic, coord in enumerate(self.output_vars_default):
+                coords_new[coord] = ic+4
+            for ic, coord in enumerate(self.output_vars_extra):
+                coords_new[coord] = ic+len(self.output_vars_default)+4
+
+        storms = get_trajectories(tracked_file, nc_file_in, self.frequency, coords_new = coords_new)
+        self.logger.debug(f"got storms {len(storms)}")
 
         # write the storms to a netcdf file
         if write_to_netcdf:
@@ -715,7 +723,7 @@ class TempestTracker(AbstractApp):
                 calendar = time.calendar
                 calendar_units = self.calendar_units
             nc_file_out = self.um_runid+'_'+tracked_file[:-4]+'.nc'
-            nc_file_out = os.path.join(os.path.dirname(tracked_file), self.um_runid+'_'+os.path.basename(tracked_file)[:-4]+'.nc')
+            nc_file_out = os.path.join(os.path.dirname(tracked_file), os.path.basename(tracked_file)[:-4]+'.nc')
             self.logger.debug(f"open netcdf file {nc_file_out}")
             self._create_netcdf(self.output_directory, nc_file_out, storms, calendar, calendar_units, variable_units,
                                     startperiod=timestart, endperiod=timeend)
@@ -763,6 +771,7 @@ class TempestTracker(AbstractApp):
         self.track_types = eval(self.app_config.get_property("common", "track_types"))
         self.variables_input = eval(self.app_config.get_property("common", "variables_input"))
         self.output_vars_default = eval(self.app_config.get_property("common", "output_vars_default"))
+        self.output_vars_extra = eval(self.app_config.get_property("common", "output_vars_default"))
         self.um_file_pattern = self.app_config.get_property("common", "um_file_pattern")
 
     def _get_environment_variables(self):
@@ -779,6 +788,32 @@ class TempestTracker(AbstractApp):
         self.startdate = os.environ["STARTDATE"]
         self.enddate = os.environ["ENDDATE"]
         self.lastcycle = os.environ["LASTCYCLE"]
+
+    def _define_netcdf_metadata(self, var):
+        long_name = 'unknown'
+        description = 'unknown'
+        if 'slp' in var:
+            standard_name = 'air_pressure_at_mean_sea_level'
+            long_name = 'Sea Level Pressure'
+            description = 'Sea level pressure for tracked variable'
+        elif 'sfcWind' in var:
+            standard_name = 'wind_speed'
+            long_name = 'Near-surface Wind Speed'
+            description = 'near-surface (usually 10 metres) wind speed'
+        elif 'orog' in var:
+            standard_name = 'surface_altitude'
+            long_name = 'Surface Altitude'
+            description = 'Surface altitude (height above sea level)'
+        elif 'wind' in var:
+            standard_name = 'wind_speed'
+        elif 'rv' in var:
+            standard_name = 'relative_vorticity'
+        elif 'zg' in var:
+            standard_name = 'geopotential_height'
+            long_name = 'Geopotential Height'
+            description = 'Geopotential height difference'
+
+        return standard_name, long_name, description
 
     def _create_netcdf(self, directory, savefname, storms, calendar, time_units, variable_units,
                       startperiod=None, endperiod=None):
@@ -862,30 +897,16 @@ class TempestTracker(AbstractApp):
             except:
                 nc.variables[var].units = 'ordinal'
             #nc.variables[var].missing_value = self.missing_value
-            
-            if var == 'slp':
-                nc.variables['slp'].standard_name = 'air_pressure_at_mean_sea_level'
-                nc.variables['slp'].long_name = 'Sea Level Pressure'
-                nc.variables['slp'].description = 'Sea level pressure for tracked variable'
-            elif var == 'sfcWind':
-                nc.variables['sfcWind'].standard_name = 'wind_speed'
-                nc.variables['sfcWind'].long_name = 'Near-surface Wind Speed'
-                nc.variables['sfcWind'].description = 'near-surface (usually 10 metres) wind speed'
-            elif var == 'orog':
-                nc.variables['orog'].standard_name = 'surface_altitude'
-                nc.variables['orog'].long_name = 'Surface Altitude'
-                nc.variables['orog'].description = 'Surface altitude (height above sea level)'
-            elif var == 'zg':
-                nc.variables['zg'].standard_name = 'geopotential_height'
-                nc.variables['zg'].long_name = 'Geopotential Height'
-                nc.variables['zg'].description = 'Geopotential height difference'
+            standard_name, long_name, description = self._define_netcdf_metadata(var)
+            nc.variables[var].standard_name = standard_name
+            nc.variables[var].long_name = long_name
+            nc.variables[var].description = description
 
         # read the storms and write the values to the file
         # track: first_pt, num_pts, track_id
         # record: lat, lon, time, slp, index(0:tracklen-1)
         first_pt = []; num_pts = []; track_id = []
         lon = []; lat = []; time = []; index = []
-        #slp = []; sfcWind = []; orog = []; zg = []
 
         variables_to_write = {}
         for var in self.output_vars_default:

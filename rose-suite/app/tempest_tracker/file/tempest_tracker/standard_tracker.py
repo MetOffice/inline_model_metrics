@@ -89,6 +89,9 @@ class TempestTracker(AbstractApp):
         # for um postproc nc files, these take form 
         timestamp_day = self.cylc_task_cycle_time[:8]
         self.logger.debug(f"time_stamp_day {timestamp_day}")
+        self.logger.debug(f"enddate {self.enddate}")
+        self.logger.debug(f"lastcycle {self.lastcycle}")
+        self.logger.debug(f"is_last_cycle {self.is_last_cycle}")
 
         dot_file = 'do_tracking'
         self._write_dot_track_file(timestamp_day, dot_file = dot_file)
@@ -98,6 +101,9 @@ class TempestTracker(AbstractApp):
         if len(dot_tracking_files) > 0:
             for do_track_file in dot_tracking_files:
                 ftimestamp_day = do_track_file.split('.')[1]
+                # do not want to do calculations on data after the current cycle date
+                if self._is_date_after(timestamp_day, ftimestamp_day):
+                    continue
                 fname = self._file_pattern(ftimestamp_day+'*', '*', 'slp', um_stream = 'pt')
                 self.logger.debug(f"fname {fname}")
                 file_search = os.path.join(
@@ -183,7 +189,8 @@ class TempestTracker(AbstractApp):
             self.logger.debug("Not running annual stitch")
 
         # Produce an wholerun summary if this is the end of the run
-        if self.lastcycle[0:8] == timestamp[0:8]:
+        self.logger.debug(f"Running wholerun {self.lastcycle} {timestamp} {self.is_last_cycle}")
+        if self.is_last_cycle:
             wholerun_tracks = self._run_wholerun_stitch()
             if self.plot_tracks:
                 for index, track_type in enumerate(self.track_types):
@@ -298,7 +305,7 @@ class TempestTracker(AbstractApp):
             candidate_files = sorted(glob.glob(candidate_pattern))
             annual_candidate = os.path.join(
                 self.output_directory,
-                f"candidate_year_{previous_year}_{track_type}.txt",
+                f"{self.um_runid}_candidate_year_{previous_year}_{track_type}.txt",
             )
             with open(annual_candidate, "w") as out_file:
                 for candidate_file in candidate_files:
@@ -307,7 +314,7 @@ class TempestTracker(AbstractApp):
                             out_file.write(line)
 
             annual_track = os.path.join(
-                self.output_directory, f"track_year_{previous_year}_{track_type}.txt"
+                self.output_directory, f"{self.um_runid}_track_year_{previous_year}_{track_type}.txt"
             )
             self._stitch_file(annual_candidate, annual_track, track_type)
             tracked_files.append(annual_track)
@@ -334,7 +341,7 @@ class TempestTracker(AbstractApp):
             candidate_files = sorted(glob.glob(candidate_pattern))
             wholerun_candidate = os.path.join(
                 self.output_directory,
-                f"{self.um_runid}_candidate_year_{start_period}_{end_period}_{track_type}.txt",
+                f"{self.um_runid}_candidate_fullrun_{start_period}_{end_period}_{track_type}.txt",
             )
             with open(wholerun_candidate, "w") as out_file:
                 for candidate_file in candidate_files:
@@ -343,7 +350,7 @@ class TempestTracker(AbstractApp):
                             out_file.write(line)
 
             wholerun_track = os.path.join(
-                self.output_directory, f"track_year_{start_period}_{end_period}_{track_type}.txt"
+                self.output_directory, f"{self.um_runid}_track_fullrun_{start_period}_{end_period}_{track_type}.txt"
             )
             self._stitch_file(wholerun_candidate, wholerun_track, track_type)
             tracked_files.append(wholerun_track)
@@ -444,6 +451,19 @@ class TempestTracker(AbstractApp):
         """
 
         if timestamp[:4] != self.previous_cycle[:4]:
+            return True
+        else:
+            return False
+
+    def _is_date_after(self, timeref, timetest):
+        """
+        Check if timetest is after timestamp.
+
+        :returns: True if timetest is after timeref.
+        :rtype: bool
+        """
+
+        if int(timetest[:8]) > int(timeref[:8]):
             return True
         else:
             return False
@@ -624,7 +644,7 @@ class TempestTracker(AbstractApp):
         variable_units = {}
 
         variables_required = {}
-        # these variables need to have a new var_name, either because the default from the UM is confusing or unknown, and these names are needed for the inputs
+        # these variables need to have a new var_name, either because the default from the UM is confusing or unknown, and these names are needed for the variable name inputs for the TempestExtremes scripts
         variables_rename = ['zg', 'rv', 'rvT63', 'uas', 'vas', 'viwve', 'viwvn', 'ta']
         for var in self.variables_input:
             variables_required[var] = {'fname': var}
@@ -709,11 +729,12 @@ class TempestTracker(AbstractApp):
         if self.output_vars_extra != None:
             for ic, coord in enumerate(self.output_vars_default):
                 coords_new[coord] = ic+4
-            for ic, coord in enumerate(self.output_vars_extra):
-                coords_new[coord] = ic+len(self.output_vars_default)+4
+            for ic1, coord1 in enumerate(self.output_vars_extra):
+                coords_new[coord1] = ic1+len(self.output_vars_default)+4
 
         storms = get_trajectories(tracked_file, nc_file_in, self.frequency, coords_new = coords_new)
         self.logger.debug(f"got storms {len(storms)}")
+        self.logger.debug(f"got storms {storms[0]}")
 
         # write the storms to a netcdf file
         if write_to_netcdf:
@@ -771,7 +792,7 @@ class TempestTracker(AbstractApp):
         self.track_types = eval(self.app_config.get_property("common", "track_types"))
         self.variables_input = eval(self.app_config.get_property("common", "variables_input"))
         self.output_vars_default = eval(self.app_config.get_property("common", "output_vars_default"))
-        self.output_vars_extra = eval(self.app_config.get_property("common", "output_vars_default"))
+        self.output_vars_extra = eval(self.app_config.get_property("common", "output_vars_extra"))
         self.um_file_pattern = self.app_config.get_property("common", "um_file_pattern")
 
     def _get_environment_variables(self):
@@ -780,40 +801,55 @@ class TempestTracker(AbstractApp):
         explanation of the required environment variables is included in the
         documentation.
         """
-        self.um_runid = os.environ["RUNID"]
-        self.um_suiteid= os.environ["CYLC_SUITE_NAME"]
+        try:
+            self.um_runid = os.environ["RUNID_OVERRIDE"]
+        except:
+            self.um_runid = os.environ["RUNID"]
+        try:
+            self.um_suiteid= os.environ["SUITEID_OVERRIDE"]
+        except:
+            self.um_suiteid= os.environ["CYLC_SUITE_NAME"]
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
         self.time_cycle = os.environ["TIME_CYCLE"]
         self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
         self.startdate = os.environ["STARTDATE"]
         self.enddate = os.environ["ENDDATE"]
         self.lastcycle = os.environ["LASTCYCLE"]
+        self.is_last_cycle = os.environ["IS_LAST_CYCLE"]
 
-    def _define_netcdf_metadata(self, var):
+    def _define_netcdf_metadata(self, var, variable_units):
         long_name = 'unknown'
         description = 'unknown'
+        units = '1'
+
         if 'slp' in var:
             standard_name = 'air_pressure_at_mean_sea_level'
             long_name = 'Sea Level Pressure'
             description = 'Sea level pressure for tracked variable'
+            units = variable_units['slp']
         elif 'sfcWind' in var:
             standard_name = 'wind_speed'
             long_name = 'Near-surface Wind Speed'
             description = 'near-surface (usually 10 metres) wind speed'
+            units = variable_units['sfcWind']
         elif 'orog' in var:
             standard_name = 'surface_altitude'
             long_name = 'Surface Altitude'
             description = 'Surface altitude (height above sea level)'
+            units = variable_units['orog']
         elif 'wind' in var:
             standard_name = 'wind_speed'
+            units = variable_units['sfcWind']
         elif 'rv' in var:
             standard_name = 'relative_vorticity'
+            units = 's-1'
         elif 'zg' in var:
             standard_name = 'geopotential_height'
             long_name = 'Geopotential Height'
             description = 'Geopotential height difference'
+            units = 'm'
 
-        return standard_name, long_name, description
+        return standard_name, long_name, description, units
 
     def _create_netcdf(self, directory, savefname, storms, calendar, time_units, variable_units,
                       startperiod=None, endperiod=None):
@@ -857,7 +893,11 @@ class TempestTracker(AbstractApp):
         nc.createVariable('lon', 'f4', ('record'))
         nc.createVariable('lat', 'f4', ('record'))
 
-        for var in self.output_vars_default:
+        if self.output_vars_extra != None:
+            output_vars_all = self.output_vars_default.copy()
+            output_vars_all.extend(self.output_vars_extra)
+
+        for var in output_vars_all:
             nc.createVariable(var, 'f8', ('record'))
 
         nc.variables['FIRST_PT'].units = 'ordinal'
@@ -891,16 +931,13 @@ class TempestTracker(AbstractApp):
         nc.variables['time'].standard_name = 'time'
         nc.variables['time'].long_name = 'time'
 
-        for var in self.output_vars_default:
-            try:
-                nc.variables[var].units = variable_units[var]
-            except:
-                nc.variables[var].units = 'ordinal'
-            #nc.variables[var].missing_value = self.missing_value
-            standard_name, long_name, description = self._define_netcdf_metadata(var)
+        for var in output_vars_all:
+            standard_name, long_name, description, v_units = self._define_netcdf_metadata(var, variable_units)
+            self.logger.debug(f"var, units {var} {v_units} ")
             nc.variables[var].standard_name = standard_name
             nc.variables[var].long_name = long_name
             nc.variables[var].description = description
+            nc.variables[var].units = str(v_units)
 
         # read the storms and write the values to the file
         # track: first_pt, num_pts, track_id
@@ -909,7 +946,7 @@ class TempestTracker(AbstractApp):
         lon = []; lat = []; time = []; index = []
 
         variables_to_write = {}
-        for var in self.output_vars_default:
+        for var in output_vars_all:
             variables_to_write[var] = []
 
         first_pt_index = 0
@@ -926,14 +963,15 @@ class TempestTracker(AbstractApp):
                 index.append(ipt)
                 lon.append(storm['lon'][ipt])
                 lat.append(storm['lat'][ipt])
-                for var in self.output_vars_default:
+                for var in output_vars_all:
                     variables_to_write[var].append(storm[var][ipt])
         
         self.logger.debug(f"first_pt {first_pt} ")
         self.logger.debug(f"tracks, record_length {tracks} {record_length} ")
         self.logger.debug(f"len(first_pt) {len(first_pt)} ")
         self.logger.debug(f"len(lon) {len(lon)} ")
-        self.logger.debug(f"lon {lon} ")
+        self.logger.debug(f"len(variables_to_write(slp)) {len(variables_to_write['slp'])} ")
+        #self.logger.debug(f"variables_to_write[slp] {variables_to_write['slp']} ")
         # now write variables to netcdf 
         nc.variables['FIRST_PT'][:] = first_pt
         nc.variables['NUM_PTS'][:] = num_pts
@@ -942,7 +980,8 @@ class TempestTracker(AbstractApp):
         nc.variables['lon'][:] = lon
         nc.variables['lat'][:] = lat
         nc.variables['time'][:] = time
-        for var in self.output_vars_default:
+        for var in output_vars_all:
+            self.logger.debug(f"var {var} ")
             nc.variables[var][:] = variables_to_write[var]
 
         nc.close()

@@ -51,6 +51,8 @@ class TempestTracker(AbstractApp):
         self.input_files = {}
         self.variable_units = {}
         self.calendar_units = 'days since 1950-01-01 00:00:00'
+        self.regrid_resolutions = ['N96']
+        self.outdir = None
 
     @property
     def cli_spec(self):
@@ -111,13 +113,25 @@ class TempestTracker(AbstractApp):
                 )
                 self.logger.debug(f"file_search {file_search}")
                 if len(glob.glob(file_search)) > 0:
+                    self.outdir = self.output_directory
                     input_files, variable_units = self._generate_data_files(ftimestamp_day)
                     self.input_files[ftimestamp_day] = input_files
                     self.variable_units = variable_units
-
                     self._run_steps(ftimestamp_day)
+                    if self.delete_input:
+                        self._tidy_data_files(ftimestamp_day)
+
+                    if self.regrid_resolutions is not None:
+                        for regrid_resol in self.regrid_resolutions:
+                            self.outdir = self.output_directory+'_'+regrid_resol
+                            input_files, variable_units = self._generate_data_files(ftimestamp_day, regrid_resol = regrid_resol)
+                            self.input_files[ftimestamp_day] = input_files
+                            self.variable_units = variable_units
+                            self._run_steps(ftimestamp_day)
+                            if self.delete_input:
+                                self._tidy_data_files(ftimestamp_day)
+
                     # if this timestep has worked OK, then need to remove the dot_file and the data
-                    self._tidy_data_files(ftimestamp_day)
                 else:
                     self.logger.error(f"no files to process for timestamp " f"{ftimestamp_day}")
         else:
@@ -165,23 +179,22 @@ class TempestTracker(AbstractApp):
         # Produce an annual summary if this is the first period in a year
         if self._is_new_year(timestamp):
             annual_tracks = self._run_annual_stitch(timestamp)
-            if self.plot_tracks:
-                for index, track_type in enumerate(self.track_types):
-                    self.cmd_detect = self.cmd_detect_type[track_type]
-                    self.cmd_stitch = self.cmd_stitch_type[track_type]
-                    self.cmd_edit = self.cmd_edit_type[track_type]
+            for index, track_type in enumerate(self.track_types):
+                self.cmd_detect = self.cmd_detect_type[track_type]
+                self.cmd_stitch = self.cmd_stitch_type[track_type]
+                self.cmd_edit = self.cmd_edit_type[track_type]
 
-                    self._read_and_plot_tracks(
-                        annual_tracks[index],
-                        self.input_files[timestamp]["slp"],
-                        timestamp[:4]+'0101',
-                        timestamp[:4]+'1231',
-                        self.variable_units,
-                        title_prefix=f"{self.um_runid} {self.resolution_code} "
-                        f"{timestamp[:4]}",
-                        title_suffix=f"{track_type} annual tracks",
-                        write_to_netcdf = True
-                    )
+                self._read_and_plot_tracks(
+                    annual_tracks[index],
+                    self.input_files[timestamp]["slp"],
+                    timestamp[:4]+'0101',
+                    timestamp[:4]+'1231',
+                    self.variable_units,
+                    title_prefix=f"{self.um_runid} {self.resolution_code} "
+                    f"{timestamp[:4]}",
+                    title_suffix=f"{track_type} annual tracks",
+                    write_to_netcdf = True
+                )
 
             # plot annual tracks (also fills in gaps in tracks)
             # create netcdf output file for tracks
@@ -190,25 +203,24 @@ class TempestTracker(AbstractApp):
 
         # Produce an wholerun summary if this is the end of the run
         self.logger.debug(f"Running wholerun {self.lastcycle} {timestamp} {self.is_last_cycle}")
-        if self.is_last_cycle:
+        if self.is_last_cycle == 'true':
             wholerun_tracks = self._run_wholerun_stitch()
-            if self.plot_tracks:
-                for index, track_type in enumerate(self.track_types):
-                    self.cmd_detect = self.cmd_detect_type[track_type]
-                    self.cmd_stitch = self.cmd_stitch_type[track_type]
-                    self.cmd_edit = self.cmd_edit_type[track_type]
+            for index, track_type in enumerate(self.track_types):
+                self.cmd_detect = self.cmd_detect_type[track_type]
+                self.cmd_stitch = self.cmd_stitch_type[track_type]
+                self.cmd_edit = self.cmd_edit_type[track_type]
 
-                    self._read_and_plot_tracks(
-                        wholerun_tracks[index],
-                        self.input_files[timestamp]["slp"],
-                        self.startdate[:8],
-                        self.enddate[:8],
-                        self.variable_units,
-                        title_prefix=f"{self.um_runid} {self.resolution_code} "
-                        f"{self.startdate[:8]} - {self.enddate[:8]}",
-                        title_suffix=f"{track_type} wholerun tracks",
-                        write_to_netcdf = True
-                    )
+                self._read_and_plot_tracks(
+                    wholerun_tracks[index],
+                    self.input_files[timestamp]["slp"],
+                    self.startdate[:8],
+                    self.enddate[:8],
+                    self.variable_units,
+                    title_prefix=f"{self.um_runid} {self.resolution_code} "
+                    f"{self.startdate[:8]} - {self.enddate[:8]}",
+                    title_suffix=f"{track_type} wholerun tracks",
+                    write_to_netcdf = True
+                )
         else:
             self.logger.debug("Not running wholerun stitch")
 
@@ -227,7 +239,7 @@ class TempestTracker(AbstractApp):
         for track_type in self.track_types:
             self.logger.debug(f"Running {track_type} detection")
             candidatefile = os.path.join(
-                self.output_directory,
+                self.outdir,
                 f"{self.um_runid}_candidate_{timestamp}_{track_type}.txt",
             )
             self.logger.debug(f"candidatefile {candidatefile}")
@@ -235,7 +247,19 @@ class TempestTracker(AbstractApp):
             cmd_io = '{} --out {} '.format(
                     self.tc_detect_script,
                     candidatefile)
-            cmd_io += '--in_data "'+';'.join(self.input_files[timestamp][r] for r in self.input_files[timestamp])+'" '
+
+            # need the first input file not to be orography, since that file has to have a time coordinate
+            fnames = []
+            for key in self.input_files[timestamp]:
+                fnames.append(self.input_files[timestamp][key])
+            fnames.remove(self.input_files[timestamp]['orog'])
+                
+            in_file_list = os.path.join(self.outdir, 'in_file_list_detect.txt')
+            with open(in_file_list, 'w') as fh:
+                text_str = ';'.join(fnames) + ';'+self.input_files[timestamp]['orog']
+                self.logger.debug(f"file_list {text_str}")
+                fh.write(text_str)
+            cmd_io += '--in_data_list '+in_file_list+' '
 
             tracking_phase_commands = self._construct_command(track_type)
             cmd_detect = cmd_io + tracking_phase_commands["detect"]
@@ -279,7 +303,7 @@ class TempestTracker(AbstractApp):
 
             candidatefile = candidate_files[index]
             trackedfile = os.path.join(
-                self.output_directory, f"{self.um_runid}_track_{self.time_range}_{track_type}.txt"
+                self.outdir, f"{self.um_runid}_track_{self.time_range}_{track_type}.txt"
             )
             self._stitch_file(candidatefile, trackedfile, track_type)
             tracked_files.append(trackedfile)
@@ -299,12 +323,12 @@ class TempestTracker(AbstractApp):
         for track_type in self.track_types:
             previous_year = int(timestamp[:4]) - 1
             candidate_pattern = os.path.join(
-                self.output_directory,
+                self.outdir,
                 f"{self.um_runid}_candidate_{previous_year}*_{track_type}.txt",
             )
             candidate_files = sorted(glob.glob(candidate_pattern))
             annual_candidate = os.path.join(
-                self.output_directory,
+                self.outdir,
                 f"{self.um_runid}_candidate_year_{previous_year}_{track_type}.txt",
             )
             with open(annual_candidate, "w") as out_file:
@@ -314,7 +338,7 @@ class TempestTracker(AbstractApp):
                             out_file.write(line)
 
             annual_track = os.path.join(
-                self.output_directory, f"{self.um_runid}_track_year_{previous_year}_{track_type}.txt"
+                self.outdir, f"{self.um_runid}_track_year_{previous_year}_{track_type}.txt"
             )
             self._stitch_file(annual_candidate, annual_track, track_type)
             tracked_files.append(annual_track)
@@ -335,12 +359,12 @@ class TempestTracker(AbstractApp):
             start_period = int(self.startdate[:8])
             end_period = int(self.enddate[:8])
             candidate_pattern = os.path.join(
-                self.output_directory,
+                self.outdir,
                 f"{self.um_runid}_candidate_????????_{track_type}.txt",
             )
             candidate_files = sorted(glob.glob(candidate_pattern))
             wholerun_candidate = os.path.join(
-                self.output_directory,
+                self.outdir,
                 f"{self.um_runid}_candidate_fullrun_{start_period}_{end_period}_{track_type}.txt",
             )
             with open(wholerun_candidate, "w") as out_file:
@@ -350,7 +374,7 @@ class TempestTracker(AbstractApp):
                             out_file.write(line)
 
             wholerun_track = os.path.join(
-                self.output_directory, f"{self.um_runid}_track_fullrun_{start_period}_{end_period}_{track_type}.txt"
+                self.outdir, f"{self.um_runid}_track_fullrun_{start_period}_{end_period}_{track_type}.txt"
             )
             self._stitch_file(wholerun_candidate, wholerun_track, track_type)
             tracked_files.append(wholerun_track)
@@ -418,7 +442,13 @@ class TempestTracker(AbstractApp):
                     self.tc_editor_script,
                     tracked_file,
                     edited_file)
-            cmd_io += '--in_data "'+';'.join(self.input_files[timestamp][r] for r in self.input_files[timestamp])+'" '
+            #cmd_io += '--in_data "'+';'.join(self.input_files[timestamp][r] for r in self.input_files[timestamp])+'" '
+            in_file_list = os.path.join(self.outdir, 'in_file_list_edit.txt')
+            with open(in_file_list, 'w') as fh:
+                text_str = ';'.join(self.input_files[timestamp][r] for r in self.input_files[timestamp])
+                self.logger.debug(f"file_list {text_str}")
+                fh.write(text_str)
+            cmd_io += '--in_data_list '+in_file_list+' '
 
             cmd_edit = cmd_io + tracking_phase_commands["profile"]
             self.cmd_edit_type[track_type] = cmd_edit
@@ -564,7 +594,7 @@ class TempestTracker(AbstractApp):
             commands[step] = " ".join(step_arguments)
         return commands
 
-    def _generate_data_files(self, timestamp):
+    def _generate_data_files(self, timestamp, regrid_resol = None):
         """
         Identify and then fix the grids and var_names in the input files.
 
@@ -627,11 +657,11 @@ class TempestTracker(AbstractApp):
             else:
                 self.frequency = int(components[1])
 
-        input_files, variable_units = self._process_input_files()
+        input_files, variable_units = self._process_input_files(regrid_resol = regrid_resol)
 
         return input_files, variable_units
 
-    def _process_input_files(self):
+    def _process_input_files(self, regrid_resol = None):
         """
         Identify and then fix the grids and var_names in the input files.
 
@@ -645,7 +675,7 @@ class TempestTracker(AbstractApp):
 
         variables_required = {}
         # these variables need to have a new var_name, either because the default from the UM is confusing or unknown, and these names are needed for the variable name inputs for the TempestExtremes scripts
-        variables_rename = ['zg', 'rv', 'rvT63', 'uas', 'vas', 'viwve', 'viwvn', 'ta']
+        variables_rename = ['zg', 'rv', 'rvT63', 'uas', 'vas', 'viwve', 'viwvn', 'ta', 'rvT42']
         for var in self.variables_input:
             variables_required[var] = {'fname': var}
             if var in variables_rename:
@@ -656,6 +686,24 @@ class TempestTracker(AbstractApp):
         reference = iris.load_cube(reference_path)
         variable_units['slp'] = reference.units
 
+        # Identify the grid and orography file
+        if regrid_resol == None:
+            longitude_size = reference.shape[-1]
+            resolution = longitude_size // 2
+            self.resolution_code = f"N{resolution}"
+
+            processed_filenames["orog"] = os.path.join(
+                self.orography_dir, f"orog_HadGEM3-GC31-{self.resolution_code}e.nc"
+            )
+        else:
+            resolution_code = f"N{regrid_resol}"
+            processed_filenames["orog"] = os.path.join(
+                self.orography_dir, f"orog_HadGEM3-GC31-{regrid_resol}e.nc"
+            )
+        cube_orog = iris.load_cube(processed_filenames["orog"])
+        variable_units['orog'] = cube_orog.units
+        reference = cube_orog
+
         for filetype in filetypes_required:
             filename = self._file_pattern(self.time_range.split('-')[0], self.time_range.split('-')[1], variables_required[filetype]["fname"], um_stream = 'pt')
 
@@ -665,12 +713,20 @@ class TempestTracker(AbstractApp):
                 self.logger.error(msg)
                 raise RuntimeError(msg)
 
-            output_path = os.path.join(self.output_directory, filename)
+            output_path = os.path.join(self.outdir, filename)
+            if not os.path.exists(os.path.dirname(output_path)):
+                os.makedirs(os.path.dirname(output_path))
 
             # apart from slp, regrid the data to the slp grid (all input data for TempestExtremes needs to be on the same grid)
             if 'slp' in filetype:
                 if not os.path.exists(output_path):
-                    shutil.copyfile(input_path, output_path)
+                    if regrid_resol == None:
+                        shutil.copyfile(input_path, output_path)
+                    else:
+                        cube = iris.load_cube(input_path)
+                        regridded = cube.regrid(cube_orog, iris.analysis.Linear())
+                        iris.save(regridded, output_path)
+                    
             else:
                 # regrid u and v to t grid and rename variable if necessary
                 cube = iris.load_cube(input_path)
@@ -684,16 +740,6 @@ class TempestTracker(AbstractApp):
 
             processed_filenames[filetype] = output_path
 
-        # Identify the grid and orography file
-        longitude_size = reference.shape[-1]
-        resolution = longitude_size // 2
-        self.resolution_code = f"N{resolution}"
-
-        processed_filenames["orog"] = os.path.join(
-            self.orography_dir, f"orog_HadGEM3-GC31-{self.resolution_code}e.nc"
-        )
-        cube = iris.load_cube(processed_filenames["orog"])
-        variable_units['orog'] = cube.units
         self.logger.debug(f"Orography file {processed_filenames['orog']}")
 
         return processed_filenames, variable_units
@@ -746,7 +792,7 @@ class TempestTracker(AbstractApp):
             nc_file_out = self.um_runid+'_'+tracked_file[:-4]+'.nc'
             nc_file_out = os.path.join(os.path.dirname(tracked_file), os.path.basename(tracked_file)[:-4]+'.nc')
             self.logger.debug(f"open netcdf file {nc_file_out}")
-            self._create_netcdf(self.output_directory, nc_file_out, storms, calendar, calendar_units, variable_units,
+            self._create_netcdf(self.outdir, nc_file_out, storms, calendar, calendar_units, variable_units,
                                     startperiod=timestart, endperiod=timeend)
 
         title_components = []
@@ -761,10 +807,11 @@ class TempestTracker(AbstractApp):
 
         filename = tracked_file[:-4] + ".png"
         self.logger.debug(f"plot storms {filename}")
-        try:
-            plot_trajectories_cartopy(storms, filename, title=title_full)
-        except:
-            self.logger.debug(f"Error from plotting trajectories ")
+        if self.plot_tracks:
+            try:
+                plot_trajectories_cartopy(storms, filename, title=title_full)
+            except:
+                self.logger.debug(f"Error from plotting trajectories ")
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""
@@ -784,8 +831,8 @@ class TempestTracker(AbstractApp):
         )
         self.slp_std_name = self.app_config.get_property("common", "slp_std_name")
         self.orography_dir = self.app_config.get_property("common", "orography_dir")
-        self.extended_files = self.app_config.get_bool_property(
-            "common", "extended_files"
+        self.delete_input = self.app_config.get_bool_property(
+            "common", "delete_input"
         )
         self.plot_tracks = self.app_config.get_bool_property("common", "plot_tracks")
         # track_types is a Python list so eval converts str to list

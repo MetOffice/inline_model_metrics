@@ -48,6 +48,7 @@ class TempestTracker(AbstractApp):
         self.cmd_detect = None
         self.cmd_stitch = None
         self.cmd_edit = None
+        self.source_files = {}
         self.input_files = {}
         self.variable_units = {}
         self.calendar_units = 'days since 1950-01-01 00:00:00'
@@ -90,19 +91,23 @@ class TempestTracker(AbstractApp):
         # Check for input files available
         # for um postproc nc files, these take form 
         timestamp_day = self.cylc_task_cycle_time[:8]
+        timestamp_endday = self.next_cycle[:8]
         self.logger.debug(f"time_stamp_day {timestamp_day}")
         self.logger.debug(f"enddate {self.enddate}")
         self.logger.debug(f"lastcycle {self.lastcycle}")
+        self.logger.debug(f"previous_cycle {self.previous_cycle}")
+        self.logger.debug(f"next_cycle {self.next_cycle}")
         self.logger.debug(f"is_last_cycle {self.is_last_cycle}")
 
         dot_file = 'do_tracking'
-        self._write_dot_track_file(timestamp_day, dot_file=dot_file)
+        self._write_dot_track_file(timestamp_day, timestamp_endday, dot_file=dot_file)
 
-        dot_tracking_files = glob.glob(os.path.join(self.output_directory, dot_file+'*'))
+        dot_tracking_files = sorted(glob.glob(os.path.join(self.output_directory, dot_file+'*')))
         self.logger.debug(f"dot_tracking_files {dot_tracking_files}")
         if dot_tracking_files:
             for do_track_file in dot_tracking_files:
-                ftimestamp_day = do_track_file.split('.')[1]
+                ftimestamp_day = do_track_file.split('.')[1].split('-')[0]
+                ftimestamp_endday = do_track_file.split('.')[1].split('-')[1]
                 # do not want to do calculations on data after the current cycle date
                 if self._is_date_after(timestamp_day, ftimestamp_day):
                     continue
@@ -111,22 +116,26 @@ class TempestTracker(AbstractApp):
                 file_search = os.path.join(self.input_directory, fname)
                 if glob.glob(file_search):
                     self.outdir = self.output_directory
-                    input_files, variable_units = self._generate_data_files(ftimestamp_day)
+                    source_files, input_files, variable_units = self._generate_data_files(ftimestamp_day)
                     self.input_files[ftimestamp_day] = input_files
                     self.variable_units = variable_units
-                    self._run_steps(ftimestamp_day)
+                    self._run_steps(ftimestamp_day, ftimestamp_endday)
                     if self.delete_input:
-                        self._tidy_data_files(ftimestamp_day)
+                        self._tidy_data_files(ftimestamp_day, ftimestamp_endday)
 
                     if self.regrid_resolutions is not None:
                         for regrid_resol in self.regrid_resolutions:
                             self.outdir = self.output_directory+'_'+regrid_resol
-                            input_files, variable_units = self._generate_data_files(ftimestamp_day, regrid_resol = regrid_resol)
+                            source_files, input_files, variable_units = self._generate_data_files(ftimestamp_day, regrid_resol = regrid_resol)
+                            self.source_files[ftimestamp_day] = source_files
                             self.input_files[ftimestamp_day] = input_files
                             self.variable_units = variable_units
-                            self._run_steps(ftimestamp_day)
+                            self._run_steps(ftimestamp_day, ftimestamp_endday)
                             if self.delete_input:
-                                self._tidy_data_files(ftimestamp_day)
+                                self._tidy_data_files(ftimestamp_day, ftimestamp_endday)
+
+                    if self.delete_source:
+                        self._tidy_data_files(ftimestamp_day, f_remove = 'source')
 
                     # if this timestep has worked OK, then need to remove the dot_file and the data
                 else:
@@ -134,8 +143,8 @@ class TempestTracker(AbstractApp):
         else:
             self.logger.error(f"no dot files to process ")
  
-    def _run_steps(self, timestamp):
-        # Run the detection and stitching for this time period
+    def _run_steps(self, timestamp, timestamp_end):
+        # Run the detection, stitching and editing for this time period
         candidate_files = self._run_detection(timestamp)
         tracked_files = self._run_stitching(candidate_files)
         edited_files = self._run_node_file_editor(tracked_files, timestamp)
@@ -151,19 +160,18 @@ class TempestTracker(AbstractApp):
 
             if os.stat(candidate_file).st_size > 0:
                 if os.stat(tracked_file).st_size > 0:
-                    if self.plot_tracks:
-                        self.logger.debug(f"Plotting {os.path.basename(tracked_file)}")
+                    self.logger.debug(f"Plotting {os.path.basename(tracked_file)}")
 
-                        self._read_and_plot_tracks(
-                            tracked_file,
-                            self.input_files[timestamp]["slp"],
-                            self.time_range.split('-')[0],
-                            self.time_range.split('-')[1],
-                            self.variable_units,
-                            title_prefix=f"{self.um_runid} {self.resolution_code} "
-                            f"{self.time_range}",
-                            title_suffix=f"{track_type} tracks",
-                            write_to_netcdf = True
+                    self._read_write_and_plot_tracks(
+                        tracked_file,
+                        self.input_files[timestamp]["slp"],
+                        self.time_range.split('-')[0],
+                        self.time_range.split('-')[1],
+                        self.variable_units,
+                        title_prefix=f"{self.um_runid} {self.resolution_code} "
+                        f"{self.time_range}",
+                        title_suffix=f"{track_type} tracks",
+                    write_to_netcdf = True
                         )
                 else:
                     self.logger.error(
@@ -174,14 +182,14 @@ class TempestTracker(AbstractApp):
                 self.logger.error(f"candidate file is empty " f"{candidate_file}")
 
         # Produce an annual summary if this is the first period in a year
-        if self._is_new_year(timestamp):
+        if self._is_new_year(timestamp, timestamp_end):
             annual_tracks = self._run_annual_stitch(timestamp)
             for index, track_type in enumerate(self.track_types):
                 self.cmd_detect = self.cmd_detect_type[track_type]
                 self.cmd_stitch = self.cmd_stitch_type[track_type]
                 self.cmd_edit = self.cmd_edit_type[track_type]
 
-                self._read_and_plot_tracks(
+                self._read_write_and_plot_tracks(
                     annual_tracks[index],
                     self.input_files[timestamp]["slp"],
                     timestamp[:4]+'0101',
@@ -207,7 +215,7 @@ class TempestTracker(AbstractApp):
                 self.cmd_stitch = self.cmd_stitch_type[track_type]
                 self.cmd_edit = self.cmd_edit_type[track_type]
 
-                self._read_and_plot_tracks(
+                self._read_write_and_plot_tracks(
                     wholerun_tracks[index],
                     self.input_files[timestamp]["slp"],
                     self.startdate[:8],
@@ -318,7 +326,7 @@ class TempestTracker(AbstractApp):
 
         tracked_files = []
         for track_type in self.track_types:
-            previous_year = int(timestamp[:4]) - 1
+            previous_year = int(timestamp[:4])
             candidate_pattern = os.path.join(
                 self.outdir,
                 f"{self.um_runid}_candidate_{previous_year}*_{track_type}.txt",
@@ -469,7 +477,7 @@ class TempestTracker(AbstractApp):
 
         return edited_files
 
-    def _is_new_year(self, timestamp):
+    def _is_new_year(self, timestamp, timestamp_end):
         """
         Check if this is the first cycle in a new year.
 
@@ -477,7 +485,7 @@ class TempestTracker(AbstractApp):
         :rtype: bool
         """
 
-        if timestamp[:4] != self.previous_cycle[:4]:
+        if timestamp[:4] != timestamp_end[:4]:
             return True
         else:
             return False
@@ -495,12 +503,12 @@ class TempestTracker(AbstractApp):
         else:
             return False
 
-    def _write_dot_track_file(self, timestamp, dot_file = 'do_tracking'):
+    def _write_dot_track_file(self, timestamp, timestamp_end, dot_file = 'do_tracking'):
         """
         Write a file indicating that this timestep needs to be tracked
 
         """
-        do_tracking_file = os.path.join(self.output_directory, dot_file+'.'+timestamp)
+        do_tracking_file = os.path.join(self.output_directory, dot_file+'.'+timestamp+'-'+timestamp_end)
         if not os.path.exists(do_tracking_file):
             os.system('touch '+do_tracking_file)
 
@@ -513,16 +521,23 @@ class TempestTracker(AbstractApp):
         if os.path.exists(do_tracking_file):
             os.system('rm '+do_tracking_file)
 
-    def _tidy_data_files(self, timestamp, dot_file = 'do_tracking'):
+    def _tidy_data_files(self, timestamp, dot_file = 'do_tracking', f_remove = 'input'):
         """
         Remove input files and tracking dot file for this timestamp (tidy up)
 
         """
         self.logger.info(f"Tidy up input files")
-        input_files_remove = self.input_files[timestamp]
-        input_files_remove.pop('orog', None)
-        for f in input_files_remove:
-            cmd_rm = 'rm '+input_files_remove[f]
+        files_remove = []
+        if f_remove == 'input':
+            files_remove = self.input_files[timestamp]
+            files_remove.pop('orog', None)
+        elif f_remove == 'source':
+            if self.delete_source:
+                files_remove = self.source_files[timestamp]
+                files_remove.pop('orog', None)
+
+        for f in files_remove:
+            cmd_rm = 'rm '+files_remove[f]
             self.logger.info(f"cmd {cmd_rm}")
             sts = subprocess.run(
                 cmd_rm,
@@ -539,7 +554,8 @@ class TempestTracker(AbstractApp):
                 )
                 raise RuntimeError(msg)
             
-        self._remove_dot_track_file(timestamp, dot_file = dot_file)
+        if f_remove == 'input':
+            self._remove_dot_track_file(timestamp, dot_file = dot_file)
         self.logger.debug(f"removed dot file {timestamp}")
 
     def _file_pattern(self, timestart, timeend, varname, um_stream = 'pt', frequency = '6h'):
@@ -654,9 +670,9 @@ class TempestTracker(AbstractApp):
             else:
                 self.frequency = int(components[1])
 
-        input_files, variable_units = self._process_input_files(regrid_resol = regrid_resol)
+        source_files, input_files, variable_units = self._process_input_files(regrid_resol = regrid_resol)
 
-        return input_files, variable_units
+        return source_files, input_files, variable_units
 
     def _process_input_files(self, regrid_resol = None):
         """
@@ -667,6 +683,7 @@ class TempestTracker(AbstractApp):
         :rtype: dict
         """
         filetypes_required = self.variables_input
+        source_filenames = {}
         processed_filenames = {}
         variable_units = {}
 
@@ -735,13 +752,14 @@ class TempestTracker(AbstractApp):
                     regridded.var_name = variables_required[filetype]["varname_new"]
                 iris.save(regridded, output_path)
 
+            source_filenames[filetype] = input_path
             processed_filenames[filetype] = output_path
 
         self.logger.debug(f"Orography file {processed_filenames['orog']}")
 
-        return processed_filenames, variable_units
+        return source_filenames, processed_filenames, variable_units
 
-    def _read_and_plot_tracks(
+    def _read_write_and_plot_tracks(
         self,
         tracked_file,
         nc_file_in,
@@ -831,6 +849,9 @@ class TempestTracker(AbstractApp):
         self.delete_input = self.app_config.get_bool_property(
             "common", "delete_input"
         )
+        self.delete_source = self.app_config.get_bool_property(
+            "common", "delete_source"
+        )
         self.plot_tracks = self.app_config.get_bool_property("common", "plot_tracks")
         # track_types is a Python list so eval converts str to list
         self.track_types = eval(self.app_config.get_property("common", "track_types"))
@@ -856,6 +877,7 @@ class TempestTracker(AbstractApp):
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
         self.time_cycle = os.environ["TIME_CYCLE"]
         self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
+        self.next_cycle = os.environ["NEXT_CYCLE"]
         self.startdate = os.environ["STARTDATE"]
         self.enddate = os.environ["ENDDATE"]
         self.lastcycle = os.environ["LASTCYCLE"]
@@ -1029,59 +1051,3 @@ class TempestTracker(AbstractApp):
             nc.variables[var][:] = variables_to_write[var]
 
         nc.close()
-
-    def _write2netcdf(self, rtime, stopper=0):
-        """
-        Write tracks to netcdf file - for the original ocean eddy code, the inactive (finished) eddies were written, not quite sure the equivalent here.
-        'ncind' is important because prevents writing of
-        already written tracks.
-        Each inactive track is 'emptied' after saving
-        
-        rtime - current timestamp
-        stopper - dummy value (either 0 or 1)
-        """
-        self.logger.debug('Writing to netCDF')
-        
-        rtime += stopper
-        tracks2save = np.array([self.get_inactive_tracks(rtime)])
-        HBR = self.HOURS_BTWN_RECORDS
-
-        if tracks2save.any(): 
-
-            with Dataset(self.savedir, 'a') as nc:
-
-                for i in np.nditer(tracks2save):
-
-                    # saved2nc is a flag indicating if track[i] has been saved
-                    if (not self.tracklist[i].saved2nc) and \
-                       (np.all(self.tracklist[i].ocean_time)):
-
-                        tsize = len(self.tracklist[i].lon)
-
-                        if (tsize >= self.TRACK_DURATION_MIN / HBR) and tsize >= 1.:
-                            lon = np.array([self.tracklist[i].lon])
-                            lat = np.array([self.tracklist[i].lat])
-                            slp = np.array([self.tracklist[i].slp])
-                            wind10m = np.array([self.tracklist[i].wind10m])
-                            track = np.full(tsize, self.ch_index, dtype=np.int32)
-                            num_pts = np.arange(tsize, dtype=np.int32)
-                            first_pt = np.arange(tsize, dtype=np.int32)
-                            track_id = np.arange(tsize, dtype=np.int32)
-                            time = np.array([self.tracklist[i].time])
-                            #time = num2date(time, units = \
-                            #    nc.variables['time'].units, \
-                            #    calendar = nc.variables['time'].calendar)
-
-
-                            tend = self.ncind + tsize
-                            nc.variables['lon'][self.ncind:tend] = lon
-                            nc.variables['lat'][self.ncind:tend] = lat
-                            nc.variables['slp'][self.ncind:tend] = lp
-                            nc.variables['time'][self.ncind:tend] = time
-
-                            self.tracklist[i].saved2nc = True
-                            self.ncind += tsize
-                            self.ch_index += 1
-                            nc.sync()
-
- 

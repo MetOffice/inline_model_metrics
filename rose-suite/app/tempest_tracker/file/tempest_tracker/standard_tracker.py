@@ -901,7 +901,7 @@ class TempestTracker(AbstractApp):
         Create netcdf file for the tracks. 
         May need metadata from a model nc file, so may need to create at a time when these are available
         """
-        print ('making netCDF of outputs')
+        self.logger.debug('making netCDF of outputs')
         
         self.savefname = savefname
         nc = Dataset(self.savefname, 'w', format='NETCDF4')

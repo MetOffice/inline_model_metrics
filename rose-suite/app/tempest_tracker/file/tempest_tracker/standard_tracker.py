@@ -109,7 +109,6 @@ class TempestTracker(AbstractApp):
                 fname = self._file_pattern(ftimestamp_day+'*', '*', 'slp', um_stream = 'pt')
                 self.logger.debug(f"fname {fname}")
                 file_search = os.path.join(self.input_directory, fname)
-                self.logger.debug(f"file_search {file_search}")
                 if glob.glob(file_search):
                     self.outdir = self.output_directory
                     input_files, variable_units = self._generate_data_files(ftimestamp_day)

@@ -96,7 +96,7 @@ class TempestTracker(AbstractApp):
         self.logger.debug(f"is_last_cycle {self.is_last_cycle}")
 
         dot_file = 'do_tracking'
-        self._write_dot_track_file(timestamp_day, dot_file = dot_file)
+        self._write_dot_track_file(timestamp_day, dot_file=dot_file)
 
         dot_tracking_files = glob.glob(os.path.join(self.output_directory, dot_file+'*'))
         self.logger.debug(f"dot_tracking_files {dot_tracking_files}")

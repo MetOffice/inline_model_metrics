@@ -100,7 +100,7 @@ class TempestTracker(AbstractApp):
 
         dot_tracking_files = glob.glob(os.path.join(self.output_directory, dot_file+'*'))
         self.logger.debug(f"dot_tracking_files {dot_tracking_files}")
-        if len(dot_tracking_files) > 0:
+        if dot_tracking_files:
             for do_track_file in dot_tracking_files:
                 ftimestamp_day = do_track_file.split('.')[1]
                 # do not want to do calculations on data after the current cycle date

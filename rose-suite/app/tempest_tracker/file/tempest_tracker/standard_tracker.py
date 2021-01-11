@@ -1040,7 +1040,7 @@ class TempestTracker(AbstractApp):
         rtime - current timestamp
         stopper - dummy value (either 0 or 1)
         """
-        print ('Writing to netCDF')
+        self.logger.debug('Writing to netCDF')
         
         rtime += stopper
         tracks2save = np.array([self.get_inactive_tracks(rtime)])

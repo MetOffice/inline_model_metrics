@@ -55,6 +55,7 @@ class TempestTracker(AbstractApp):
         self.calendar_units = 'days since 1950-01-01 00:00:00'
         self.regrid_resolutions = None
         self.outdir = None
+        self.do_fullrun = False
 
     @property
     def cli_spec(self):
@@ -112,6 +113,8 @@ class TempestTracker(AbstractApp):
                 # do not want to do calculations on data after the current cycle date
                 if self._is_date_after(timestamp_day, ftimestamp_day):
                     continue
+                if ftimestamp_day == timestamp_day:
+                    self.do_fullrun = True
                 fname = self._file_pattern(ftimestamp_day+'*', '*', 'slp', um_stream = 'pt')
                 self.logger.debug(f"fname {fname}")
                 file_search = os.path.join(self.input_directory, fname)
@@ -208,8 +211,9 @@ class TempestTracker(AbstractApp):
             self.logger.debug("Not running annual stitch")
 
         # Produce an wholerun summary if this is the end of the run
+        # and this is the last dot file
         self.logger.debug(f"Running wholerun {self.lastcycle} {timestamp} {self.is_last_cycle}")
-        if self.is_last_cycle == 'true':
+        if self.is_last_cycle == 'true' and self.do_fullrun:
             wholerun_tracks = self._run_wholerun_stitch()
             for index, track_type in enumerate(self.track_types):
                 self.cmd_detect = self.cmd_detect_type[track_type]

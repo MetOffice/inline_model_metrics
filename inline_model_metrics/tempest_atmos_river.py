@@ -1,4 +1,4 @@
-# (C) British Crown Copyright 2020, Met Office.
+# (C) British Crown Copyright 2022, Met Office.
 # Please see LICENSE for license details.
 import glob
 import os
@@ -34,9 +34,10 @@ class TempestError(Exception):
     pass
 
 
-class TempestTracker(AbstractApp):
+class TempestExtremesAR(AbstractApp):
     """
-    Run the TempestExtreme tracker inline with a climate model
+    Run the TempestExtremes atmospheric river tracker inline with a climate
+    model.
     """
 
     def __init__(self, arglist=None, **kwargs):
@@ -50,9 +51,11 @@ class TempestTracker(AbstractApp):
         self.frequency = None
         self.resolution_code = None
         self.cmd_detect_type = {}
+        self.cmd_detectblobs_type = {}
         self.cmd_stitch_type = {}
         self.cmd_edit_type = {}
         self.cmd_detect = None
+        self.cmd_detectblobs = None
         self.cmd_stitch = None
         self.cmd_edit = None
         self.source_files = {}
@@ -66,10 +69,7 @@ class TempestTracker(AbstractApp):
         self._is_new_year = False
         self._old_year_value = None
         self._archived_files_dir = "archived_files"
-        self.variables_rename = ["slp", "uas", "vas", "viwve", "viwvn", "rvT42_850", "rh_850", "ts", \
-                                 "zg_925", "zg_850", "zg_700", "zg_600", "zg_500", "zg_250", \
-                                 "rvT63_850", "rvT63_700", "rvT63_600", "rvT63_500", "rvT63_250", \
-                                 "ua_925", "ua_850", "va_925", "va_850"]
+        self.ar_variables_rename = []
         self.outputcmd_detect_default = ""
         self.in_fmt_stitch_default = ""
         self.out_fmt_profile1_default = ""
@@ -106,7 +106,7 @@ class TempestTracker(AbstractApp):
         # initialise variables that might not get set if no detection step
         for regrid_resol in self.regrid_resolutions:
             self.processed_files_slp[regrid_resol] = ""
-        for track_type in self.track_types:
+        for track_type in self.ar_types:
             self.cmd_detect_type[track_type] = ""
             self.cmd_stitch_type[track_type] = ""
         self.outdir = self.output_directory + "_" + "native"
@@ -129,24 +129,8 @@ class TempestTracker(AbstractApp):
         self.logger.debug(f"next_cycle {self.next_cycle}")
         self.logger.debug(f"is_last_cycle {self.is_last_cycle}")
 
-#        # this section of code processes data from the current timestep
-#        current_time = timestamp_day
-#        # find the relevant input data using the given file pattern
-#        fname = self._file_pattern(current_time + "*", "*", "slp",
-#                                   um_stream="pt", frequency="*")
-#        file_search = os.path.join(self.input_directory, fname)
-#        self.logger.debug(f"file_search {file_search}")
-
-#        # pre-process the input files and produce standard processed files for later use
-#        if glob.glob(file_search):
-#            for regrid_resol in self.regrid_resolutions:
-#                self.outdir = self.output_directory + '_' + regrid_resol
-#                source_files, processed_files, variable_units = \
-#                    self._generate_data_files(timestamp_day, timestamp_endday,
-#                                              grid_resol=regrid_resol)
-
         # First write a dot_file to document which timestamps are yet to be tracked
-        dot_file = "do_tracking"
+        dot_file = "do_ar_tracking"
         candidate_files = []
         self._write_dot_track_file(timestamp_day, timestamp_endday, dot_file=dot_file)
 
@@ -181,7 +165,7 @@ class TempestTracker(AbstractApp):
 
                 for regrid_resol in self.regrid_resolutions:
                     self.outdir = self.output_directory+'_'+regrid_resol
-                    fname = self._file_pattern_processed(ftimestamp_day + "*", "*", "slp",
+                    fname = self._file_pattern_processed(ftimestamp_day + "*", "*", "viwve",
                                                          frequency=self.data_frequency)
                     file_search = os.path.join(self.outdir, fname)
                     if glob.glob(file_search):
@@ -191,11 +175,11 @@ class TempestTracker(AbstractApp):
                         #self.source_files[ftimestamp_day] = source_files
                         self.processed_files[ftimestamp_day] = processed_files
                         self.processed_files_slp[regrid_resol] = \
-                            self.processed_files[ftimestamp_day]["slp"]
+                            self.processed_files[ftimestamp_day]["viwve"]
                         self.variable_units = variable_units
 
-                        # run TempestExtremes detection
-                        candidate_files = self._run_detection(ftimestamp_day)
+                        # run TempestExtremes detect blobs
+                        candidate_files = self._run_detect_blobs(ftimestamp_day)
                         # if this timestep has worked OK, then need to remove the dot_file
                         # (the data is needed later)
                         self._remove_dot_track_file(timestamp_previous, timestamp_day)
@@ -205,48 +189,6 @@ class TempestTracker(AbstractApp):
                                           f"{ftimestamp_day}")
         else:
             self.logger.error(f"no dot files to process ")
-
-        # find file for timestep name of T-2 (one before timestamp_previous)
-        # if this is available, then:
-        #     run stitching for the combined T-2&T-1 timestamps
-        #     run editing (profile), using the T-2 and T-1 data files for TC profiles,
-        #     IKE etc
-        fname_slp = self._file_pattern_processed(timestamp_tm2+"*", timestamp_previous+"*", "slp",
-                                       frequency=self.data_frequency)
-        file_search = os.path.join(self.outdir, fname_slp)
-        files_slp_prev = sorted(glob.glob(file_search))
-        self.logger.debug(f"file_search for tm2 {file_search} {files_slp_prev} "
-                          f"{len(files_slp_prev)}")
-
-        self.logger.debug(f"files_slp_prev {files_slp_prev}")
-
-        if len(files_slp_prev) == 1:
-            timestamp_tm1 = timestamp_previous
-
-            # run the stitching and edit/profile on native grid data
-            for regrid_resol in self.regrid_resolutions:
-                outdir = self.output_directory + "_" + regrid_resol
-                tracked_files = self._run_stitch_twotimes(outdir, timestamp_tm1,
-                                                          timestamp_tm2)
-
-                # run the node editing, and then edit the track files after matching
-                # across time periods
-                self._run_editing_matching(
-                    outdir,
-                    timestamp_day,
-                    timestamp_tm1,
-                    timestamp_tm2,
-                    tracked_files,
-                    files_slp_prev[0],
-                    grid_resol=regrid_resol
-                )
-
-                # archive the track files
-                self._archive_track_data(
-                    outdir,
-                    timestamp_tm1,
-                    timestamp_tm2
-                )
 
         # at this point, I can delete the input data for the T-2 timestep
         if self.delete_processed:
@@ -272,7 +214,7 @@ class TempestTracker(AbstractApp):
         self.logger.debug(sts.stdout)
         if sts.stderr:
             msg = (
-                f"Error found in run_cmd output\n" f"{sts.stderr}"
+                f"Error found in cat output\n" f"{sts.stderr}"
             )
             raise RuntimeError(msg)
         return sts
@@ -465,44 +407,38 @@ class TempestTracker(AbstractApp):
 
     def _archive_to_mass(
         self,
-        archive_directory
+        tracked_file
     ):
         """
-        Archive any files with .arch to MASS system
-        :param str archive_directory: The directory to look for any .arch files
+        Archive file to MASS system
+        :param str tracked_file: The file to archive to MASS
         """
 
         moosedir = "moose:/crum/{}/{}/"
-        archive_files = glob.glob(os.path.join(archive_directory, '*.arch'))
-        if len(archive_files) > 0:
-            for fname_arch in archive_files:
-                fname = fname_arch[:-5]
-                if fname[-2:] == "nc":
-                    mass_stream = "any.nc.file"
-                else:
-                    mass_stream = "ady.file"
-                if os.stat(fname).st_size == 0:
-                    self.logger.debug(f"File is zero length, no archive {fname}")
-                return
-                cmd = "moo put -F "+fname+" "+moosedir.format(self.um_suiteid,
+        if tracked_file[-2:] == "nc":
+            mass_stream = "any.nc.file"
+        else:
+            mass_stream = "ady.file"
+        if os.stat(tracked_file).st_size == 0:
+            self.logger.debug(f"File is zero length, no archive {tracked_file}")
+            return
+        cmd = "moo put -F "+tracked_file+" "+moosedir.format(self.um_suiteid,
                                                              mass_stream)
-                self.logger.debug(f"Archive cmd {cmd}")
+        self.logger.debug(f"Archive cmd {cmd}")
 
-                sts = subprocess.run(
-                    cmd,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    universal_newlines=True
-                )
-                if sts.stderr:
-                    msg = (
-                        f"Error found in cmd {cmd} {sts.stderr} \n"
-                    )
-                    raise RuntimeError(msg)
-                else:
-                    os.remove(fname_arch)
-                self.logger.debug(sts.stdout)
+        sts = subprocess.run(
+            cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True
+        )
+        if sts.stderr:
+            msg = (
+                f"Error found in cmd {cmd} {sts.stderr} \n"
+            )
+            raise RuntimeError(msg)
+        self.logger.debug(sts.stdout)
 
     def _archive_track_data(
         self,
@@ -565,9 +501,7 @@ class TempestTracker(AbstractApp):
                         join(files_to_tar)
                     self.logger.debug(f"Tar candidates {cmd}")
                     sts = self._run_cmd(cmd, check=False)
-                    with open(os.path.join(candidate_file_year_tar, ".arch"), "a"):
-                        os.utime(os.path.join(candidate_file_year_tar, ".arch"), None)
-                    #self._archive_to_mass(candidate_file_year_tar)
+                    self._archive_to_mass(candidate_file_year_tar)
 
                 tracked_files_adjust_b = os.path.join(
                     outdir,
@@ -597,9 +531,7 @@ class TempestTracker(AbstractApp):
                             join(files_to_tar)
                         self.logger.debug(f"Tar candidates {cmd}")
                         sts = self._run_cmd(cmd, check=False)
-                        with open(os.path.join(tracked_files_adjust_b_tar, ".arch"), "a"):
-                            os.utime(os.path.join(tracked_files_adjust_b_tar, ".arch"), None)
-                        #self._archive_to_mass(tracked_files_adjust_b_tar)
+                        self._archive_to_mass(tracked_files_adjust_b_tar)
 
                 tracked_file_final = os.path.join(
                     outdir,
@@ -608,9 +540,7 @@ class TempestTracker(AbstractApp):
                 )
                 for f_ending in [".txt", ".nc"]:
                     if os.path.exists(tracked_file_final+f_ending):
-                        with open(os.path.join(tracked_file_final+f_ending, ".arch"), "a"):
-                            os.utime(os.path.join(tracked_file_final+f_ending, ".arch"), None)
-                        #self._archive_to_mass(tracked_file_final+f_ending)
+                        self._archive_to_mass(tracked_file_final+f_ending)
 
                 candidate_files_to_tidy = os.path.join(
                     outdir,
@@ -637,9 +567,6 @@ class TempestTracker(AbstractApp):
             # archive all the files at the end of the run
             if self.is_last_cycle == 'true':
                 pass
-
-        # run the archiving on any .arch files that exist
-        self._archive_to_mass(os.path.join(outdir, self._archived_files_dir))
 
     def _run_detection(self, timestamp):
         """
@@ -709,6 +636,93 @@ class TempestTracker(AbstractApp):
             candidate_files.append(candidatefile)
 
         return candidate_files
+
+    def make_file_list(dir_in, dir_out, fname, var_in, var_out, files_in, files_include = []):
+        file_list_outfile = os.path.join(dir_in, fname)
+        file_list = []
+        for f in files_in:
+            f1 = f.replace(var_in, var_out)
+            f2 = os.path.join(dir_out, os.path.basename(f1))
+            file_list.append(f2)
+
+        with open(file_list_outfile, 'w') as fh:
+            for f in file_list:
+                if len(files_include) == 0:
+                    text_str = f+'\n'
+                else:
+                    text_str = f+';'+files_include[ifl]+'\n'
+                fh.write(text_str)
+
+        return file_list_outfile
+
+    def _run_detect_blobs(self, timestamp):
+        """
+        Run the Tempest blob detection.
+
+        :param str timestamp: The timestep of data/tracking to process
+        :returns: The path to the candidate files (as a list ordered by track
+            type) and details of the processed input files (as a dict).
+        :rtype: tuple
+        :
+        """
+        self.logger.debug(f"cwd {os.getcwd()}")
+
+        for ar_type in self.ar_types:
+            self.logger.debug(f"Running {ar_type} detection")
+            candidatefile = os.path.join(
+                self.outdir,
+                f"{self.um_runid}_AR_{timestamp}_{ar_type}.txt",
+            )
+            self.logger.debug(f"candidatefile {candidatefile}")
+
+            #cmd_io = '{} --out {} '.format(
+            #        self.ar_detectblobs_script,
+            #        candidatefile)
+            cmd_io = "{} ".format(self.ar_detectblobs_script)
+
+            # need the first input file not to be orography, since that file has to
+            # have a time coordinate
+            fnames = []
+            #for key in self.processed_files[timestamp]:
+            for key in ["viwve", "viwvn"]:
+                if isinstance(self.processed_files[timestamp][key], list):
+                    fnames.extend(self.processed_files[timestamp][key])
+                else:
+                    fnames.append(self.processed_files[timestamp][key])
+
+            in_file_list = os.path.join(self.outdir, 'in_file_list_detectblobs.txt')
+            with open(in_file_list, "w") as fh:
+                text_str = ';'.join(fnames)
+                self.logger.debug(f"file_list {text_str}")
+                fh.write(text_str)
+
+            fname = self.processed_files[timestamp]["viwve"]
+            ARmask = fname.replace("viwve", "ARmask")
+
+            cmd_io += '--in_data_list '+in_file_list+' --out '+ARmask+' '
+
+            tracking_phase_commands = self._construct_command(ar_type)
+            cmd_detectblobs = cmd_io + tracking_phase_commands["detectblobs"]
+            self.cmd_detect_type[ar_type] = cmd_detectblobs
+            self.logger.info(f"Detect command {cmd_detectblobs}")
+
+            sts = subprocess.run(
+                cmd_detectblobs,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+                check=True,
+            )
+            self.logger.debug(sts.stdout)
+            if "EXCEPTION" in sts.stdout:
+                msg = (
+                    f"EXCEPTION found in TempestExtreme detectblobs output\n"
+                    f"{sts.stdout}"
+                )
+                raise RuntimeError(msg)
+
+        return ARmask
 
     def _run_stitching(self, candidate_files):
         """
@@ -1406,10 +1420,10 @@ class TempestTracker(AbstractApp):
         # these variables need to have a new var_name, either because the default
         # from the UM is confusing or unknown, and these names are needed for the
         # variable name inputs for the TempestExtremes scripts
-        variables_rename = self.variables_rename
-        for var in self.variables_input:
+        ar_variables_rename = self.ar_variables_rename
+        for var in self.ar_variables_input:
             variables_required[var] = {'fname': var}
-            if var in variables_rename:
+            if var in ar_variables_rename:
                 variables_required[var].update({'varname_new': var})
 
         reference_name = self._file_pattern(self.time_range.split('-')[0],
@@ -1440,7 +1454,7 @@ class TempestTracker(AbstractApp):
         reference = cube_orog
         iris.save(cube_orog, os.path.join(self.outdir, 'orography.nc'))
 
-        for var in self.variables_input:
+        for var in self.ar_variables_input:
             filename = self._file_pattern(self.time_range.split('-')[0],
                                           self.time_range.split('-')[1],
                                           variables_required[var]["fname"],
@@ -1532,15 +1546,12 @@ class TempestTracker(AbstractApp):
         )
         cube = iris.load_cube(processed_filenames["orog"])
         variable_units['orog'] = cube.units
-        longitude_size = cube.shape[-1]
-        resolution = longitude_size // 2
-        self.resolution_code = f"N{resolution}"
 
         if not os.path.exists(os.path.dirname(self.outdir)):
             raise Exception("Processed file directory does not exist, should come from pre-processing "\
                             +self.outdir)
 
-        for var_name in self.variables_rename:
+        for var_name in self.ar_variables_rename:
             # identify the processed path filename similar to CMIP6 naming, will be standard
             # regardless of the input filename structure
             # varname_new, freq, time,
@@ -1609,8 +1620,8 @@ class TempestTracker(AbstractApp):
             step = 'stitch'
         elif track_step == 'trackprofile':
             step = 'profile'
-        hr_frequency = int(self.data_frequency.strip('h'))
-        storms = get_trajectories(tracked_file, nc_file_in, hr_frequency,
+
+        storms = get_trajectories(tracked_file, nc_file_in, self.data_frequency,
                                   self.column_names[track_type+'_'+step])
         self.logger.debug(f"got storms {len(storms)} from {tracked_file}")
         if len(storms) == 0:
@@ -1856,14 +1867,13 @@ class TempestTracker(AbstractApp):
             if os.path.exists(tracked_file_previous) and \
                     os.path.exists(tracked_file_current):
                 self.logger.debug(f"_match_tracks nc_file_in {nc_file_in}")
-                hr_frequency = int(self.data_frequency.strip('h'))
                 storms_previous = get_trajectories(tracked_file_previous,
                                                    nc_file_in,
-                                                   hr_frequency,
+                                                   self.data_frequency,
                                                    column_names)
                 storms_current = get_trajectories(tracked_file_current,
                                                   nc_file_in,
-                                                  hr_frequency,
+                                                  self.data_frequency,
                                                   column_names)
 
                 storms_time_space_match = []
@@ -1921,6 +1931,9 @@ class TempestTracker(AbstractApp):
         self.tc_editor_script = self.app_config.get_property(
             "common", "tc_editor_script"
         )
+        self.ar_detectblobs_script = self.app_config.get_property(
+            "common", "ar_detectblobs_script"
+        )
         self.orography_dir = self.app_config.get_property("common", "orography_dir")
         self.delete_processed = self.app_config.get_bool_property(
             "common", "delete_processed"
@@ -1930,11 +1943,11 @@ class TempestTracker(AbstractApp):
         )
         self.plot_tracks = self.app_config.get_bool_property("common", "plot_tracks")
         # track_types is a Python list so eval converts str to list
-        self.track_types = eval(self.app_config.get_property("common", "track_types"))
-        self.variables_input = eval(self.app_config.get_property("common",
-                                                                 "variables_input"))
-        self.variables_rename = eval(self.app_config.get_property("common",
-                                                                 "variables_rename"))
+        self.ar_types = eval(self.app_config.get_property("common", "ar_types"))
+        self.ar_variables_input = eval(self.app_config.get_property("common",
+                                                                 "ar_variables_input"))
+        self.ar_variables_rename = eval(self.app_config.get_property("common",
+                                                                 "ar_variables_rename"))
         self.nodeedit_vars = eval(self.app_config.get_property("common",
                                                                "nodeedit_vars"))
         self.um_file_pattern = self.app_config.get_property("common",

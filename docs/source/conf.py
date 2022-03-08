@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = "tenten_tempestextremes"
-copyright = "2020, Met Office"
+copyright = "2022, Met Office"
 author = "Met Office"
 
 # The short X.Y version

@@ -1,4 +1,4 @@
-# (C) British Crown Copyright 2020, Met Office.
+# (C) British Crown Copyright 2022, Met Office.
 # Please see LICENSE for license details.
 import glob
 import os
@@ -24,9 +24,10 @@ class TempestError(Exception):
     pass
 
 
-class TempestPreprocess(AbstractApp):
+class UMTempestPreprocess(AbstractApp):
     """
-    Preprocess data for the TempestExtreme tracker
+    Preprocess Unified Model (Met Office HadGEM model) data for the
+    TempestExtremes trackers.
     """
 
     def __init__(self, arglist=None, **kwargs):
@@ -313,10 +314,10 @@ class TempestPreprocess(AbstractApp):
         # these variables need to have a new var_name, either because the default
         # from the UM is confusing or unknown, and these names are needed for the
         # variable name inputs for the TempestExtremes scripts
-        variables_rename = self.variables_rename
-        for var in self.variables_input:
+        tc_variables_rename = self.tc_variables_rename
+        for var in self.tc_variables_input:
             variables_required[var] = {'fname': var}
-            if var in variables_rename:
+            if var in tc_variables_rename:
                 variables_required[var].update({'varname_new': var})
 
         reference_name = self._file_pattern(self.time_range.split('-')[0],
@@ -347,7 +348,7 @@ class TempestPreprocess(AbstractApp):
         reference = cube_orog
         iris.save(cube_orog, os.path.join(self.outdir, 'orography.nc'))
 
-        for var in self.variables_input:
+        for var in self.tc_variables_input:
             filename = self._file_pattern(self.time_range.split('-')[0],
                                           self.time_range.split('-')[1],
                                           variables_required[var]["fname"],
@@ -460,10 +461,10 @@ class TempestPreprocess(AbstractApp):
         self.delete_source = self.app_config.get_bool_property(
             "common", "delete_source"
         )
-        self.variables_input = eval(self.app_config.get_property("common",
-                                                                 "variables_input"))
-        self.variables_rename = eval(self.app_config.get_property("common",
-                                                                 "variables_rename"))
+        self.tc_variables_input = eval(self.app_config.get_property("common",
+                                                                 "tc_variables_input"))
+        self.tc_variables_rename = eval(self.app_config.get_property("common",
+                                                                 "tc_variables_rename"))
         self.um_file_pattern = self.app_config.get_property("common",
                                                             "um_file_pattern")
         self.file_pattern_processed = self.app_config.get_property("common",

@@ -562,8 +562,8 @@ class TempestExtremesCyclone(AbstractApp):
                         join(files_to_tar)
                     self.logger.debug(f"Tar candidates {cmd}")
                     sts = self._run_cmd(cmd, check=False)
-                    with open(os.path.join(candidate_file_year_tar, ".arch"), "a"):
-                        os.utime(os.path.join(candidate_file_year_tar, ".arch"), None)
+                    with open(candidate_file_year_tar + ".arch", "a"):
+                        os.utime(candidate_file_year_tar + ".arch", None)
                     #self._archive_to_mass(candidate_file_year_tar)
 
                 tracked_files_adjust_b = os.path.join(
@@ -594,8 +594,8 @@ class TempestExtremesCyclone(AbstractApp):
                             join(files_to_tar)
                         self.logger.debug(f"Tar candidates {cmd}")
                         sts = self._run_cmd(cmd, check=False)
-                        with open(os.path.join(tracked_files_adjust_b_tar, ".arch"), "a"):
-                            os.utime(os.path.join(tracked_files_adjust_b_tar, ".arch"), None)
+                        with open(tracked_files_adjust_b_tar + ".arch", "a"):
+                            os.utime(tracked_files_adjust_b_tar + ".arch", None)
                         #self._archive_to_mass(tracked_files_adjust_b_tar)
 
                 tracked_file_final = os.path.join(
@@ -605,8 +605,8 @@ class TempestExtremesCyclone(AbstractApp):
                 )
                 for f_ending in [".txt", ".nc"]:
                     if os.path.exists(tracked_file_final+f_ending):
-                        with open(os.path.join(tracked_file_final+f_ending, ".arch"), "a"):
-                            os.utime(os.path.join(tracked_file_final+f_ending, ".arch"), None)
+                        with open(tracked_file_final + f_ending + ".arch", "a"):
+                            os.utime(tracked_file_final + f_ending + ".arch", None)
                         #self._archive_to_mass(tracked_file_final+f_ending)
 
                 candidate_files_to_tidy = os.path.join(
@@ -616,6 +616,7 @@ class TempestExtremesCyclone(AbstractApp):
                 files = sorted(glob.glob(candidate_files_to_tidy))
                 if len(files) > 0:
                     for f in files:
+                        #TODO change mv command to a Python os.rename()
                         cmd = "mv " + f + " " + os.path.join(outdir, "tidy")
                         sts = self._run_cmd(cmd, check=True)
                         self.logger.debug(f"{cmd} {sts.stdout}")

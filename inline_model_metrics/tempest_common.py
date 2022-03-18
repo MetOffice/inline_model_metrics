@@ -174,8 +174,8 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         """
         self.logger.info(f"Tidy up input files")
         files_remove = []
-        #TODO an identical _generate_data_files() is called in preprocess. This one should be removed
-        source_files, processed_files, variable_units = self._generate_data_files(timestamp)
+        source_files, processed_files = self._generate_file_names(timestamp,
+                                                                  timestamp_end)
 
         if f_remove == 'processed':
             files_remove = processed_files
@@ -253,7 +253,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         return fname.strip('"')
 
     def _file_pattern_processed(self, timestart, timeend, varname,
-                      frequency='6h'):
+                                frequency='6h'):
         """
         For processed files, we know what the filenames look like, so search specifically
 
@@ -364,81 +364,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
 
         return commands
 
-    def _generate_data_files(self, timestamp, timestamp_end, grid_resol='native'):
-        """
-        Identify and then fix the grids and var_names in the input files.
-        The time_range and frequency attributes are set when this method runs.
-
-        :param str timestamp: The timestep of the start of the data period to process
-        :param str grid_resol: Either native, or the resolution string if regridding
-        :                      is required
-        :returns: A dictionary of the files found for this period and a string
-            containing the period between samples in the input data.
-        :rtype: dict
-        """
-        timestamp_day = timestamp
-        self.logger.debug(f"timestamp_day in generate_data_files {timestamp_day}")
-        fname = self._file_pattern(timestamp_day+'*', '*', 'slp', um_stream='pt',
-                                   frequency='*')
-        file_search = os.path.join(
-            self.input_directory, fname
-        )
-        files = sorted(glob.glob(file_search))
-        self.logger.debug(f"file_search {file_search}, files {files}")
-        if not files:
-            msg = f"No input files found for glob pattern {file_search}"
-            self.logger.error(msg)
-            raise RuntimeError(msg)
-
-        time_ranges = []
-        unique_ranges = []
-        frequencies = []
-        unique_frequencies = []
-        for filename in files:
-            file_elements = os.path.basename(filename).split("_")
-            if len(file_elements) >= 3:
-                time_range = os.path.basename(filename).split("_")[3]
-                frequency = os.path.basename(filename).split("_")[2]
-            else:
-                time_range = timestamp_day+'-'+timestamp_day
-                frequency = self.data_frequency
-            time_ranges.append(time_range)
-            frequencies.append(frequency)
-            unique_ranges = list(set(time_ranges))
-            unique_frequencies = list(set(frequencies))
-        if len(unique_ranges) == 0:
-            msg = "No tracked_file periods found"
-            self.logger.error(msg)
-            raise RuntimeError(msg)
-        elif len(unique_ranges) != 1:
-            msg = "No tracked_file periods found"
-            self.logger.error(msg)
-            raise RuntimeError(msg)
-        else:
-            self.time_range = unique_ranges[0]
-        if len(unique_frequencies) == 0:
-            msg = "No tracked_file frequencies found"
-            self.logger.error(msg)
-            raise RuntimeError(msg)
-        elif len(unique_frequencies) != 1:
-            msg = "No tracked_file frequencies found"
-            self.logger.error(msg)
-            raise RuntimeError(msg)
-        else:
-            frequency = unique_frequencies[0]
-            components = re.match(r"(\d+)", frequency)
-            if not components:
-                msg = r"No digit found in frequency {frequency}"
-                self.logger.error(msg)
-                raise ValueError(msg)
-            else:
-                self.frequency = int(components[1])
-
-        source_files, processed_files, variable_units = \
-            self._process_input_files(timestamp, timestamp_end, grid_resol=grid_resol)
-
-        return source_files, processed_files, variable_units
-
     def _check_time_coord(self, fnames):
         """
         Check that file has latitude and longitude coordinates called
@@ -464,22 +389,18 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                 self.logger.debug(f"cmd {cmd}")
                 subprocess.call(cmd, shell=True)
 
-    def _process_input_files(self, time_start, time_end, grid_resol='native'):
+    def _generate_file_names(self, time_start, time_end):
         """
-        Identify and then fix the grids and var_names in the input files.
-        The variable names need to have a new var_name, either because the default
-        from the UM is confusing or unknown, and these names are needed for the
-        variable name inputs for the TempestExtremes scripts
+        Generate a list of input and output filenames.
 
-        :param str grid_resol: The resolution string to be used if regridding
-        :                      is required
+        :param str time_start: The timestep of the start of the data period to process
+        :param str time_end: The timestep of the end of the data period to process
         :returns: A dictionary of the files found for this period and a string
             containing the period between samples in the input data.
         :rtype: dict
         """
         source_filenames = {}
         processed_filenames = {}
-        variable_units = {}
 
         variables_required = {}
         # these variables need to have a new var_name, either because the default
@@ -490,36 +411,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             if var in self.variables_rename:
                 variables_required[var].update({'varname_new': var})
 
-        reference_name = self._file_pattern(self.time_range.split('-')[0],
-                                            self.time_range.split('-')[1],
-                                            variables_required["slp"]["fname"],
-                                            um_stream='pt')
-        reference_path = os.path.join(self.input_directory, reference_name)
-        reference = iris.load_cube(reference_path)
-        variable_units['slp'] = reference.units
-
-        # Identify the grid and orography file
-        if grid_resol == 'native':
-            longitude_size = reference.shape[-1]
-            resolution = longitude_size // 2
-            # TODO self.resolution_code is set in two places in the code
-            self.resolution_code = f"N{resolution}"
-
-            # HadGEM specific - make generic
-            processed_filenames["orog"] = os.path.join(
-                self.orography_dir, f"orog_HadGEM3-GC31-{self.resolution_code}e.nc"
-            )
-            shutil.copyfile(processed_filenames["orog"], os.path.join(self.outdir, 'orography.nc'))
-        else:
-            resolution_code = f"N{grid_resol}"
-            processed_filenames["orog"] = os.path.join(
-                self.orography_dir, f"orog_HadGEM3-GC31-{grid_resol}e.nc"
-            )
-        cube_orog = iris.load_cube(processed_filenames["orog"])
-        variable_units['orog'] = cube_orog.units
-        reference = cube_orog
-        iris.save(cube_orog, os.path.join(self.outdir, 'orography.nc'))
-
         for var in self.variables_input:
             filename = self._file_pattern(self.time_range.split('-')[0],
                                           self.time_range.split('-')[1],
@@ -527,10 +418,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                                           um_stream='pt')
 
             input_path = os.path.join(self.input_directory, filename)
-            if not os.path.exists(input_path):
-                msg = f"Unable to find expected input file {input_path}"
-                self.logger.error(msg)
-                raise RuntimeError(msg)
 
             # make the output path filename similar to CMIP6 naming, will be standard
             # regardless of the input filename structure
@@ -544,50 +431,11 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                                                        self.frequency)
 
             output_path = os.path.join(self.outdir, output_path)
-            # temporary for testing #
-            if os.path.exists(output_path):
-                source_filenames[var] = input_path
-                processed_filenames[var] = output_path
-                continue
-            if not os.path.exists(os.path.dirname(output_path)):
-                os.makedirs(os.path.dirname(output_path))
-
-            # apart from slp, regrid the data to the slp grid (all input data for
-            # TempestExtremes needs to be on the same grid)
-            # regrid u and v to t grid and rename variable if necessary
-            cube = iris.load_cube(input_path)
-            cube = iris.util.squeeze(cube)
-            ndims = cube.shape
-            variable_units[var] = cube.units
-            if var == 'uas':
-                variable_units['sfcWind'] = cube.units
-            self.logger.debug(f"regrid file {input_path}")
-            regridded = cube.regrid(reference, iris.analysis.Linear())
-            if "varname_new" in variables_required[var]:
-                regridded.var_name = variables_required[var]["varname_new"]
-
-            output_paths = []
-            if len(ndims) == 3:
-                iris.save(regridded, output_path)
-                #output_paths.append(output_path)
-                output_paths = output_path
-            else:
-                level_coord = regridded.dim_coords[1]
-                for ilevel, level in enumerate(level_coord.points):
-                    regridded_level = regridded[:, ilevel, :, :]
-                    regridded_level.var_name = regridded.var_name+'_'+str(int(level))
-                    iris.save(regridded_level, output_path[:-3]+'_'+str(int(level))+'.nc')
-                    output_paths.append(output_path[:-3]+'_'+str(int(level))+'.nc')
-            print ('incoming paths ', [output_paths])
-            check_paths = [output_paths] if isinstance(output_paths, str) else output_paths
-            self._check_time_coord(check_paths)
 
             source_filenames[var] = input_path
-            processed_filenames[var] = output_paths
+            processed_filenames[var] = output_path
 
-        self.logger.debug(f"Orography file {processed_filenames['orog']}")
-
-        return source_filenames, processed_filenames, variable_units
+        return source_filenames, processed_filenames
 
     def _identify_processed_files(self, time_start, time_end, grid_resol='native'):
         """

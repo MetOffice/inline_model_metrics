@@ -308,8 +308,10 @@ class UMTempestPreprocess(AbstractApp):
         if grid_resol == 'native':
             longitude_size = reference.shape[-1]
             resolution = longitude_size // 2
+            # TODO self.resolution_code is set in two places in the code
             self.resolution_code = f"N{resolution}"
 
+            # TODO HadGEM specific - make generic
             processed_filenames["orog"] = os.path.join(
                 self.orography_dir, f"orog_HadGEM3-GC31-{self.resolution_code}e.nc"
             )

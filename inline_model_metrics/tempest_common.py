@@ -650,3 +650,61 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         self.logger.debug(f"Orography file {processed_filenames['orog']}")
 
         return processed_filenames, variable_units
+
+    def _get_app_options(self):
+        """Get commonly used configuration items from the config file"""
+
+        self.input_directory = self.app_config.get_property("common",
+                                                            "input_directory")
+        self.output_directory = self.app_config.get_property(
+            "common", "output_directory"
+        )
+        self.orography_dir = self.app_config.get_property("common", "orography_dir")
+        self.delete_processed = self.app_config.get_bool_property(
+            "common", "delete_processed"
+        )
+        self.delete_source = self.app_config.get_bool_property(
+            "common", "delete_source"
+        )
+        self.plot_tracks = self.app_config.get_bool_property("common", "plot_tracks")
+        self.nodeedit_vars = eval(self.app_config.get_property("common",
+                                                               "nodeedit_vars"))
+        self.um_file_pattern = self.app_config.get_property("common",
+                                                            "um_file_pattern")
+        self.file_pattern_processed = self.app_config.get_property("common",
+                                                            "file_pattern_processed")
+        self.regrid_resolutions = \
+            eval(self.app_config.get_property("common", "regrid_resolutions"))
+        self.data_frequency = self.app_config.get_property("common",
+                                                            "data_frequency")
+        self.outputcmd_detect_default = self.app_config.get_property("common", "outputcmd_detect_default")
+        self.in_fmt_stitch_default = self.app_config.get_property("common", "in_fmt_stitch_default")
+        self.out_fmt_profile1_default = self.app_config.get_property("common", "out_fmt_profile1_default")
+        self.out_fmt_profile2_default = self.app_config.get_property("common", "out_fmt_profile2_default")
+
+    def _get_environment_variables(self):
+        """
+        Get the required environment variables from the suite. A list and
+        explanation of the required environment variables is included in the
+        documentation.
+        """
+
+        # TODO check that the variables here match those in the documentation
+        try:
+            self.um_runid = os.environ["RUNID_OVERRIDE"]
+        except:
+            self.um_runid = os.environ["RUNID"]
+        try:
+            self.um_suiteid = os.environ["SUITEID_OVERRIDE"]
+        except:
+            self.um_suiteid = os.environ["CYLC_SUITE_NAME"]
+        self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
+        self.time_cycle = os.environ["TIME_CYCLE"]
+        self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
+        self.tm2_cycle = os.environ["TM2_CYCLE"]
+        self.next_cycle = os.environ["NEXT_CYCLE"]
+        self.startdate = os.environ["STARTDATE"]
+        self.enddate = os.environ["ENDDATE"]
+        self.lastcycle = os.environ["LASTCYCLE"]
+        self.is_last_cycle = os.environ["IS_LAST_CYCLE"]
+        self.ncodir = os.environ["NCODIR"]

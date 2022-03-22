@@ -8,7 +8,8 @@ import sys
 
 from netCDF4 import Dataset
 
-from .tempest_common import TempestExtremesAbstract
+from .tempest_common import (TempestExtremesAbstract, _is_date_after,
+                             _is_date_after_or_equal)
 
 from tempest_helper import (
     count_trajectories,
@@ -114,12 +115,12 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
                 # do not want to do calculations on data after or equal to the current
                 # cycle date, unless it is also the last
-                if self._is_date_after_or_equal(ftimestamp_day, timestamp_day) \
+                if _is_date_after_or_equal(ftimestamp_day, timestamp_day) \
                         and not self.is_last_cycle == "true":
                     continue
 
                 # if timestamp_previous is before the start date then no work
-                if self._is_date_after(self.startdate, timestamp_previous):
+                if _is_date_after(self.startdate, timestamp_previous):
                     continue
 
                 # find the relevant input data using the given file pattern

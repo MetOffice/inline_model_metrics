@@ -1,10 +1,7 @@
 # (C) British Crown Copyright 2022, Met Office.
 # Please see LICENSE for license details.
 from abc import ABCMeta, abstractmethod
-import glob
 import os
-import re
-import shutil
 import subprocess
 
 import iris
@@ -83,47 +80,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             )
             raise RuntimeError(msg)
         return sts
-
-    def _is_new_year_old(self, timestamp, timestamp_end):
-        """
-        Check if this is the first cycle in a new year.
-
-        :param str timestamp: The timestep of the start of the data period to process
-        :param str timestamp_end: The timestep of the end of the data period to process
-        :returns: True if this is this period crosses a year boundary.
-        :rtype: bool
-        """
-
-        if timestamp[:4] != timestamp_end[:4]:
-            return True
-        else:
-            return False
-
-    def _is_date_after(self, timetest, timeref):
-        """
-        Check if timetest is after timeref.
-
-        :returns: True if timetest is after timeref.
-        :rtype: bool
-        """
-
-        if int(timetest[:8]) > int(timeref[:8]):
-            return True
-        else:
-            return False
-
-    def _is_date_after_or_equal(self, timetest, timeref):
-        """
-        Check if timetest is equal or after timestamp.
-
-        :returns: True if timetest is equal or after timeref.
-        :rtype: bool
-        """
-
-        if int(timetest[:8]) >= int(timeref[:8]):
-            return True
-        else:
-            return False
 
     def _write_dot_track_file(self, timestamp, timestamp_end,
                               dot_file='do_tracking'):
@@ -287,10 +243,11 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         Read the TempestExtreme command line parameters from the configuration.
         :param str track_type: The name of the type of tracking to run, possible
             values: detect, stitch, profile
-        :returns: A dictionary with keys of `detect`, `stitch`, `profile`
-            and the values for each of these is a string containing the
-            command line parameters for each of these TempestExtreme steps.
-            The parameters are sorted into alphabetical order in each line.
+        :returns: A dictionary with keys of `detect`, `stitch`, `profile`,
+            `detectblobs`, `nodefilefilter` and the values for each of these is
+            a string containing the command line parameters for each of these
+            TempestExtreme steps. The parameters are sorted into alphabetical
+            order in each line.
         :rtype: dict
         """
 
@@ -556,3 +513,30 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         self.lastcycle = os.environ["LASTCYCLE"]
         self.is_last_cycle = os.environ["IS_LAST_CYCLE"]
         self.ncodir = os.environ["NCODIR"]
+
+
+def _is_date_after(timetest, timeref):
+    """
+    Check if timetest is after timeref.
+
+    :returns: True if timetest is after timeref.
+    :rtype: bool
+    """
+
+    if int(timetest[:8]) > int(timeref[:8]):
+        return True
+    else:
+        return False
+
+def _is_date_after_or_equal(timetest, timeref):
+    """
+    Check if timetest is equal or after timestamp.
+
+    :returns: True if timetest is equal or after timeref.
+    :rtype: bool
+    """
+
+    if int(timetest[:8]) >= int(timeref[:8]):
+        return True
+    else:
+        return False

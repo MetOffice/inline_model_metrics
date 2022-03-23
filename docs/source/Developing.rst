@@ -1,48 +1,17 @@
 Developers' Instructions
 ========================
 
-Developing the code is complicated by the fact that this is a single Rose app
-that will be used in many Rose suites. Care needs to be taken so that any changes
-that are made in one suite are committed to the repository so that they can be
-re-used in other suites.
-
-Editing source code
-###################
-
-The safe method:
-
-#. Make all changes to the code in your checked out copy of https://github.com/MetOffice/tenten_tempestextremes/
-#. Copy the changes to the suite by running::
-
-      bin/copy_code_to_suite.sh ~/roses/<suite-id>
-
-#. Reload the suite to pick up the changes::
-
-      rose suite-run --reload
-
-#. Re-run the tracking task in the Cylc GUI, look at the output from the suite and
-   go back to step 1 to make further changes.
-#. When everything's working, commit and push the changes to GitHub.
-
-The dangerous way:
-
-#. Make your changes in the suite's work directory on the host where the tracking's
-   running.
-#. When everything's working, copy the changes back from the host where the tracking's
-   running back to your local copy of https://github.com/MetOffice/tenten_tempestextremes/
-   and commit and push the changes.
-
 Git workflow
 ############
 
 #. Setup your SSH keys (https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/connecting-to-github-with-ssh)
 #. Obtain a local copy of the suite::
 
-      git clone git@github.com:MetOffice/tenten_tempestextremes.git
+      git@github.com:MetOffice/inline_model_metrics.git
 
 #. Change directory into the repository::
 
-      cd tenten_tempestextremes
+      cd inline_model_metrics
 
 #. If you have previously cloned the repository then update your local copy to
    the latest version::
@@ -67,7 +36,7 @@ Git workflow
       git push origin <branch-name>
 
 #. You can make as many commits and pushes as you want.
-#. Create a pull request at https://github.com/MetOffice/tenten_tempestextremes/compare
+#. Create a pull request at https://github.com/MetOffice/inline_model_metrics/compare
    by in the compare box selecting your branch and clicking on "Create pull request".
 
 #. Once the code has been reviewed then the pull request can be merged using the
@@ -110,10 +79,9 @@ Running the tests
 
       export PYTHONPATH=/path/to/tempest_helper:$PYTHONPATH
 
-#. Add the tenten_tempestextremes code to your `PYTHONPATH`::
+#. Add the inline_model_metrics code to your `PYTHONPATH`::
 
-      export PYTHONPATH=/path/to/tenten_tempestextremes/rose-suite/app/tempest_tracker/file:$PYTHONPATH
-
+      export PYTHONPATH=/path/to/inline_model_metrics:$PYTHONPATH
 #. Run the tests::
 
       pytest -vv
@@ -124,7 +92,7 @@ Building the Documentation
 In the checked out repository, make sure that your Python environment includes
 Sphinx (standard scientific ones do)::
 
-   export PYTHONPATH=/path/to/tenten_tempestextremes/rose-suite/app/tempest_tracker/file
+   export PYTHONPATH=/path/to/inline_model_metrics
    cd docs
    make clean && make html
 

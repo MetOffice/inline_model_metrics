@@ -17,15 +17,19 @@ Index: b/x/3/1/5/trunk/suite.rc
 
 +    [[tracking]]
 +        inherit = RUN_MAIN, TRACKING_RESOURCE
-+        pre-script = """
-+            module load scitools
-+            module load um_tools
-+            module load gcc/7.3.0
-+            module load cray-netcdf/4.3.2"""
 +        [[[environment]]]
-+            ROSE_TASK_APP = tempest_tracker
++            BASIS = $({{ROSEDATE}} {{EXPT_BASIS}})
++            NEXT_CYCLE = $({{ROSEDATE}} --offset={{EXPT_RESUB}} ref)
 +            TIME_CYCLE = $({{ROSEDATE}} ref)
 +            PREVIOUS_CYCLE = $({{ROSEDATE}} --offset=-{{EXPT_RESUB}} ref)
-+
++            TM2_CYCLE = $({{ROSEDATE}} --offset=-{{EXPT_RESUB}} --offset=-{{EXPT_RESUB}} ref)
++            CYCLEPERIOD = {{EXPT_RESUB}}
++            STARTDATE=$CYLC_SUITE_INITIAL_CYCLE_POINT
++            ENDDATE=$({{ROSEDATE}} --offset={{EXPT_RUNLEN}} {{EXPT_BASIS}})
++            LASTCYCLE=$({{ROSEDATE}} ref --offset={{EXPT_RESUB}} {{EXPT_BASIS}} --offset2={{EXPT_RUNLEN}} )
++            IS_LAST_CYCLE = $(if [ $LASTCYCLE == 'P0Y' ]; then echo "true"; else echo "false"; fi)
++    	     MPLBACKEND=Agg
++            ROSE_TASK_APP = tempest_tracker
+
      [[pptransfer]]
          inherit = RUN_MAIN, PPTRANSFER_RESOURCE

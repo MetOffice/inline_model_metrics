@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Developers’ Instructions &mdash; inline_model_metrics 0.1.0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Interfaces" href="Interface.html" />
+    <link rel="prev" title="Installing" href="Installing.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> inline_model_metrics
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="Installing.html">Installing</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Developers’ Instructions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#git-workflow">Git workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#running-the-tests">Running the tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#building-the-documentation">Building the Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#to-add-new-track-types">To add new track types</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Interface.html">Interfaces</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="License.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">inline_model_metrics</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Developers’ Instructions</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/Developing.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="developers-instructions">
+<h1>Developers’ Instructions<a class="headerlink" href="#developers-instructions" title="Permalink to this headline"></a></h1>
+<section id="git-workflow">
+<h2>Git workflow<a class="headerlink" href="#git-workflow" title="Permalink to this headline"></a></h2>
+<ol class="arabic">
+<li><p>Setup your SSH keys (<a class="reference external" href="https://docs.github.com/en/free-pro-team&#64;latest/github/authenticating-to-github/connecting-to-github-with-ssh">https://docs.github.com/en/free-pro-team&#64;latest/github/authenticating-to-github/connecting-to-github-with-ssh</a>)</p></li>
+<li><p>Obtain a local copy of the suite:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span><span class="nd">@github</span><span class="o">.</span><span class="n">com</span><span class="p">:</span><span class="n">MetOffice</span><span class="o">/</span><span class="n">inline_model_metrics</span><span class="o">.</span><span class="n">git</span>
+</pre></div>
+</div>
+</li>
+<li><p>Change directory into the repository:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">inline_model_metrics</span>
+</pre></div>
+</div>
+</li>
+<li><p>If you have previously cloned the repository then update your local copy to
+the latest version:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">checkout</span> <span class="n">main</span>
+<span class="n">git</span> <span class="n">pull</span> <span class="n">origin</span> <span class="n">main</span>
+</pre></div>
+</div>
+</li>
+<li><p>Create a branch for your changes and change to this branch:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">fetch</span> <span class="n">origin</span>
+<span class="n">git</span> <span class="n">branch</span> <span class="o">&lt;</span><span class="n">branch</span><span class="o">-</span><span class="n">name</span><span class="o">&gt;</span> <span class="n">origin</span><span class="o">/</span><span class="n">main</span>
+<span class="n">git</span> <span class="n">checkout</span> <span class="o">&lt;</span><span class="n">branch</span><span class="o">-</span><span class="n">name</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+</li>
+<li><p>When you’re happy with your changes, check the changes that you’ve made:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">status</span>
+<span class="n">git</span> <span class="n">diff</span>
+</pre></div>
+</div>
+</li>
+<li><p>You can then commit these changes and push them back up to GitHub:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">commit</span> <span class="o">-</span><span class="n">am</span> <span class="s1">&#39;&lt;commit message&gt;&#39;</span>
+<span class="n">git</span> <span class="n">push</span> <span class="n">origin</span> <span class="o">&lt;</span><span class="n">branch</span><span class="o">-</span><span class="n">name</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+</li>
+<li><p>You can make as many commits and pushes as you want.</p></li>
+<li><p>Create a pull request at <a class="reference external" href="https://github.com/MetOffice/inline_model_metrics/compare">https://github.com/MetOffice/inline_model_metrics/compare</a>
+by in the compare box selecting your branch and clicking on “Create pull request”.</p></li>
+<li><p>Once the code has been reviewed then the pull request can be merged using the
+GitHub web page for that pull request.</p></li>
+<li><p>After merging, change your local copy of the code back to the main branch, delete
+your local copy of the development branch and pull in the changes from GitHub’s
+main branch to your local copy:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">checkout</span> <span class="n">main</span>
+<span class="n">git</span> <span class="n">branch</span> <span class="o">-</span><span class="n">D</span>  <span class="o">&lt;</span><span class="n">branch</span><span class="o">-</span><span class="n">name</span><span class="o">&gt;</span>
+<span class="n">git</span> <span class="n">pull</span> <span class="n">origin</span> <span class="n">main</span>
+</pre></div>
+</div>
+</li>
+</ol>
+<p>To examine complex changes, you might also want to consider using graphical diff
+rather than just the command line, in which case you should add the following lines
+to your <cite>~/.gitconfig</cite> file:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">diff</span><span class="p">]</span>
+     <span class="n">tool</span> <span class="o">=</span> <span class="n">tkdiff</span>
+<span class="p">[</span><span class="n">difftool</span><span class="p">]</span>
+     <span class="n">prompt</span> <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+<p>and then, rather than just <cite>git diff</cite>, you can use:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">difftool</span>
+</pre></div>
+</div>
+</section>
+<section id="running-the-tests">
+<h2>Running the tests<a class="headerlink" href="#running-the-tests" title="Permalink to this headline"></a></h2>
+<ol class="arabic">
+<li><p>Load a Python environment in the usual way for your location.</p></li>
+<li><p>Point to the Afterburner installation on your local machine and add this to your
+<cite>PYTHONPATH</cite>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>export AFTERBURNER_HOME_DIR=/path/to/afterburner/software/turbofan/current
+export PYTHONPATH=$AFTERBURNER_HOME_DIR/lib/python:$PYTHONPATH
+</pre></div>
+</div>
+</li>
+<li><p>Download a local copy of tempest_helper (<a class="reference external" href="https://github.com/MetOffice/tempest_helper/">https://github.com/MetOffice/tempest_helper/</a>)
+and add it to your <cite>PYTHONPATH</cite>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>export PYTHONPATH=/path/to/tempest_helper:$PYTHONPATH
+</pre></div>
+</div>
+</li>
+<li><p>Add the inline_model_metrics code to your <cite>PYTHONPATH</cite>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>export PYTHONPATH=/path/to/inline_model_metrics:$PYTHONPATH
+</pre></div>
+</div>
+</li>
+<li><p>Run the tests:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pytest</span> <span class="o">-</span><span class="n">vv</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="building-the-documentation">
+<h2>Building the Documentation<a class="headerlink" href="#building-the-documentation" title="Permalink to this headline"></a></h2>
+<p>In the checked out repository, make sure that your Python environment includes
+Sphinx (standard scientific ones do):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">export</span> <span class="n">PYTHONPATH</span><span class="o">=/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">inline_model_metrics</span>
+<span class="n">cd</span> <span class="n">docs</span>
+<span class="n">make</span> <span class="n">clean</span> <span class="o">&amp;&amp;</span> <span class="n">make</span> <span class="n">html</span>
+</pre></div>
+</div>
+<p>The build documentation can then be viewed in your browser (replace Firefox
+with the name of your browser if required):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">firefox</span> <span class="n">build</span><span class="o">/</span><span class="n">html</span><span class="o">/</span><span class="n">index</span><span class="o">.</span><span class="n">html</span>
+</pre></div>
+</div>
+</section>
+<section id="to-add-new-track-types">
+<h2>To add new track types<a class="headerlink" href="#to-add-new-track-types" title="Permalink to this headline"></a></h2>
+<ol class="arabic simple">
+<li><p>Add an option for the new track type to the values in <cite>[common=track_type]</cite> in
+<cite>rose-meta.conf</cite>.</p></li>
+<li><p>Select the new track type in the <cite>track_type</cite> setting in the <cite>[common]</cite> section
+of <cite>rose-app.conf</cite>.</p></li>
+<li><p>Add <cite>[&lt;track_type&gt;_detect]</cite>  and <cite>[&lt;track_type&gt;_stitch]</cite> sections to <cite>rose-app.conf</cite>.</p></li>
+</ol>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="Installing.html" class="btn btn-neutral float-left" title="Installing" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="Interface.html" class="btn btn-neutral float-right" title="Interfaces" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Met Office.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

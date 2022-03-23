@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interfaces &mdash; inline_model_metrics 0.1.0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Contributing" href="Contributing.html" />
+    <link rel="prev" title="Developers’ Instructions" href="Developing.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> inline_model_metrics
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="Installing.html">Installing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Developing.html">Developers’ Instructions</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Interfaces</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#input-files">Input Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#environment-variables">Environment Variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#intermediate-files">Intermediate Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#tracking-on-regridded-model-grids">Tracking on regridded model grids</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#output-files">Output Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#orography-files">Orography Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#track-types">Track types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#variables-output">Variables output</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="License.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">inline_model_metrics</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Interfaces</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/Interface.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="interfaces">
+<h1>Interfaces<a class="headerlink" href="#interfaces" title="Permalink to this headline"></a></h1>
+<section id="input-files">
+<h2>Input Files<a class="headerlink" href="#input-files" title="Permalink to this headline"></a></h2>
+<p>The tracking requires netCDF files. These are currently being produced by the UM’s
+postproc task. The following images show how these have been
+configured in <cite>rose edit</cite>. Example namelists to add to Rose configuration files
+will be added to this repository in the future.</p>
+<img alt="_images/postproc_file-transformation.png" src="_images/postproc_file-transformation.png" />
+<p>In the Model Output Streams then the <cite>reinit_step</cite> value of the netCDF stream
+must equal the resubmission period <cite>EXPT_RESUB</cite> defined in <cite>rose-app.conf</cite> so
+that the netCDF files are available to the tracking task when the subsequent
+postproc task has completed.</p>
+<img alt="_images/model_output_streams.png" src="_images/model_output_streams.png" />
+<img alt="_images/usage_profile.png" src="_images/usage_profile.png" />
+<img alt="_images/stash_requests.png" src="_images/stash_requests.png" />
+<p>In this configuration, files are saved in the <cite>$DATAM</cite> directory.</p>
+<p>The str names of these files must correspond to those of the <cite>variables_input</cite> in the <cite>rose-app.conf</cite>.</p>
+<p>The path that the tracking uses to read these files is configured in the
+<cite>input_directory</cite> value in <cite>rose-app.conf</cite>.</p>
+<p>The input netCDF files are not currently archived, but can be deleted after the processing
+has been run via logical <cite>delete_source</cite> value in the <cite>rose-app.conf</cite>.</p>
+</section>
+<section id="environment-variables">
+<h2>Environment Variables<a class="headerlink" href="#environment-variables" title="Permalink to this headline"></a></h2>
+<p>The Python code requires the following environment variables to be set:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 29%" />
+<col style="width: 71%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>CYLC_TASK_CYCLE_TIME</p></td>
+<td><p>The Cylc task cycle (current) time</p></td>
+</tr>
+<tr class="row-odd"><td><p>RUNID</p></td>
+<td><p>The UM RUNID (e.g. cb196)</p></td>
+</tr>
+<tr class="row-even"><td><p>SUITEID</p></td>
+<td><p>The UM SUITEID (e.g. u-cb196)</p></td>
+</tr>
+<tr class="row-odd"><td><p>TIME_CYCLE</p></td>
+<td><p>The current cylc CYCLE time</p></td>
+</tr>
+<tr class="row-even"><td><p>PREVIOUS_CYCLE</p></td>
+<td><p>The previous cylc CYCLE time</p></td>
+</tr>
+<tr class="row-odd"><td><p>NEXT_CYCLE</p></td>
+<td><p>The next cylc CYCLE time</p></td>
+</tr>
+<tr class="row-even"><td><p>STARTDATE</p></td>
+<td><p>The start date for this cycle</p></td>
+</tr>
+<tr class="row-odd"><td><p>ENDDATE</p></td>
+<td><p>The end date for this cycle</p></td>
+</tr>
+<tr class="row-even"><td><p>LASTCYCLE</p></td>
+<td><p>The date for the last cycle</p></td>
+</tr>
+<tr class="row-odd"><td><p>IS_LAST_CYCLE</p></td>
+<td><p>Logical, is this the last cycle of the simulation</p></td>
+</tr>
+<tr class="row-even"><td><p>MPLBACKEND</p></td>
+<td><p>The matplotlib backend (when DISPLAY is not defined</p></td>
+</tr>
+</tbody>
+</table>
+<p>In the default configuration, the following environment variable is used in
+<cite>rose-app.conf</cite> and needs to be set by the suite (which happens by default in
+standard UM suites):</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 29%" />
+<col style="width: 71%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>DATAM</p></td>
+<td><p>The data output working directory</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="intermediate-files">
+<h2>Intermediate Files<a class="headerlink" href="#intermediate-files" title="Permalink to this headline"></a></h2>
+<p>The input netCDF files require various transformations before TempestExtremes
+can track them. The tracking software performs these transformations and saves
+the resulting files in the output directory. The filename of these generated
+files is currently hardcoded in the software to be in the form:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">atmos_</span><span class="p">{</span><span class="n">runid</span><span class="p">}</span><span class="n">a_</span><span class="p">{</span><span class="n">frequency</span><span class="p">}</span><span class="n">h_</span><span class="p">{</span><span class="n">time_range</span><span class="p">}</span><span class="n">_pt</span><span class="o">-</span><span class="p">{</span><span class="n">variable_name</span><span class="p">}</span><span class="o">.</span><span class="n">nc</span>
+</pre></div>
+</div>
+<p>The intermediate
+netCDF files are not currently archived, and can be deleted after the processing has been run via the logical <cite>delete_processed</cite> value in the <cite>rose-app.conf</cite>.</p>
+</section>
+<section id="tracking-on-regridded-model-grids">
+<h2>Tracking on regridded model grids<a class="headerlink" href="#tracking-on-regridded-model-grids" title="Permalink to this headline"></a></h2>
+<p>The input netCDF files may also be regridded to specified UM grids defined by <cite>regrid_resolutions</cite> defined in <cite>rose-app.conf</cite>. If this is not <cite>None</cite>, then as well as the tracking being done on the native grid that the model is using, an additional set of tracking will be performed on the grid specified. <cite>regrid_resolutions</cite> takes the form of a list <cite>[‘N96’]</cite>. The resolution string must exist as an orography file (see below under Orography Files), using that grid for the regridding.</p>
+</section>
+<section id="output-files">
+<h2>Output Files<a class="headerlink" href="#output-files" title="Permalink to this headline"></a></h2>
+<p>The path to the output files if specified by <cite>output_directory</cite> in <cite>rose-app.conf</cite>.
+The following files are generated:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 41%" />
+<col style="width: 59%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>{runid}_candidate_file_{time}_{track_type}.txt</p></td>
+<td><p>The candidate file generated by the TempestExtremes detection</p></td>
+</tr>
+<tr class="row-odd"><td><p>{runid}_track_file_{time_range}_{track_type}.txt</p></td>
+<td><p>The tracked file generated by the TempestExtremes stitching</p></td>
+</tr>
+<tr class="row-even"><td><p>{runid}_track_file_{time_range}_{track_type}.png</p></td>
+<td><p>(Optional) The plotted tracks for the specified time period</p></td>
+</tr>
+<tr class="row-odd"><td><p>{runid}_candidate_year_{year}_{track_type}.txt</p></td>
+<td><p>All candidate files for one year concatenated together</p></td>
+</tr>
+<tr class="row-even"><td><p>{runid}_track_year_{time_range}_{track_type}.txt</p></td>
+<td><p>The stitching output for one year</p></td>
+</tr>
+<tr class="row-odd"><td><p>{runid}_track_year_{year}_{track_type}.png</p></td>
+<td><p>(Optional) The plotted tracks for the specified year</p></td>
+</tr>
+<tr class="row-even"><td><p>{runid}_candidate_fullrun_{time_range}_{track_type}.txt</p></td>
+<td><p>All candidate files for whole period of model simulation concatenated together</p></td>
+</tr>
+<tr class="row-odd"><td><p>{runid}_track_fullrun_{time_range}_{track_type}.txt</p></td>
+<td><p>The stitching output for whole period of model simulation</p></td>
+</tr>
+</tbody>
+</table>
+<p>The output files are not currently archived after the processing has been run.</p>
+</section>
+<section id="orography-files">
+<h2>Orography Files<a class="headerlink" href="#orography-files" title="Permalink to this headline"></a></h2>
+<p>An orography file for each grid being tracked should be placed in the directory
+specified by the <cite>orography_dir</cite> value in <cite>rose-app.conf</cite>. The file to use is
+identified from the number of longitude  points in the the input files and is
+specified using the standard UM N grid name. The orography files should have a
+name in the form:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">orog_HadGEM3</span><span class="o">-</span><span class="n">GC31</span><span class="o">-&lt;</span><span class="n">n</span><span class="o">-</span><span class="n">code</span><span class="o">&gt;</span><span class="n">e</span><span class="o">.</span><span class="n">nc</span>
+</pre></div>
+</div>
+<p>For example a file with 512 longitude points is on the <cite>N216</cite> grid and will be
+called:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">orog_HadGEM3</span><span class="o">-</span><span class="n">GC31</span><span class="o">-</span><span class="n">N216e</span><span class="o">.</span><span class="n">nc</span>
+</pre></div>
+</div>
+</section>
+<section id="track-types">
+<h2>Track types<a class="headerlink" href="#track-types" title="Permalink to this headline"></a></h2>
+<p>The list <cite>track_types</cite> in <cite>rose-app.conf</cite> is the selection of identification/tracking recipies to be used, with details of each contained in the <cite>rose-app.conf</cite>.</p>
+</section>
+<section id="variables-output">
+<h2>Variables output<a class="headerlink" href="#variables-output" title="Permalink to this headline"></a></h2>
+<p>The variables output by the tracking (within the netCDF file if specified) are specified by <cite>output_vars_default</cite> and <cite>output_vars_extra</cite> within <cite>rose-app.conf</cite>. Currently these names need to exactly match the variables and order used in the <cite>outputcmd</cite> of the <cite>detect</cite> part of the identification recipe.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="Developing.html" class="btn btn-neutral float-left" title="Developers’ Instructions" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="Contributing.html" class="btn btn-neutral float-right" title="Contributing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Met Office.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -19,8 +19,8 @@
 
 # -- Project information -----------------------------------------------------
 
-project = "tenten_tempestextremes"
-copyright = "2020, Met Office"
+project = "inline_model_metrics"
+copyright = "2022, Met Office"
 author = "Met Office"
 
 # The short X.Y version
@@ -103,7 +103,7 @@ html_static_path = ["_static"]
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "tenten_tempestextremesdoc"
+htmlhelp_basename = "inline_model_metricsdoc"
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -129,8 +129,8 @@ latex_elements = {
 latex_documents = [
     (
         master_doc,
-        "tenten_tempestextremes.tex",
-        "tenten\\_tempestextremes Documentation",
+        "inline_model_metrics.tex",
+        "inline\\_model\\_metrics Documentation",
         "Met Office",
         "manual",
     ),
@@ -144,8 +144,8 @@ latex_documents = [
 man_pages = [
     (
         master_doc,
-        "tenten_tempestextremes",
-        "tenten_tempestextremes Documentation",
+        "inline_model_metrics",
+        "inline_model_metrics Documentation",
         [author],
         1,
     )
@@ -160,10 +160,10 @@ man_pages = [
 texinfo_documents = [
     (
         master_doc,
-        "tenten_tempestextremes",
-        "tenten_tempestextremes Documentation",
+        "inline_model_metrics",
+        "inline_model_metrics Documentation",
         author,
-        "tenten_tempestextremes",
+        "inline_model_metrics",
         "One line description of project.",
         "Miscellaneous",
     ),

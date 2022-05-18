@@ -31,6 +31,7 @@ Input Files from Unified Model (UM)
 ###################################
 
 These are currently being produced by the UM's postproc task. The form that these files take is defined by the UM's postproc code, and take the form defined in the `um_file_pattern` input variable pattern::
+
   um_file_pattern="{runid}a.{stream}{date_start}_{variable}.nc"
 
 The following images show how these have been
@@ -257,13 +258,13 @@ The variables output by the cyclone tracking (in txt and netCDF file if specifie
 Other cyclone tracking variables
 ################################
 
-The variable list specified in the `out_fmt` command mentioned above can be long and repetitive across different `track_types`. To help with this, standard template values for `in_fmt` and `out_fmt` can be provided in the `[common]` part of the cyclone tracking `rose-app.conf` file. Specifically::
+The variable list specified in the `out_fmt` command mentioned above can be long and repetitive across different `track_types`. To help with this, standard template values for `in_fmt` and `out_fmt` can be provided in the `[common]` part of the cyclone tracking `rose-app.conf` file. Specifically:
 
-   output_detect_default can be defined in [common], and used for the output from the detect command;
+* `output_detect_default` can be defined in `[common]`, and used for the output from the detect command;
 
-   in_fmt_stitch_default can be defined in [common], and then used at the in_fmt argument for _stitch and _profile;
+* `in_fmt_stitch_default` can be defined in `[common]`, and then used at the `in_fmt` argument for _stitch and _profile;
 
-   out_fmt_profile1 and out_fmt_profile2 can be used in [common] for the out_fmt of the _profile step.
+* `out_fmt_profile1` and `out_fmt_profile2` can be used in `[common]` for the `out_fmt` of the _profile step.
 
 Note that these need to be consistent with each other, as the code is unable to check that the output from one command is consistent with the input to the next command.
 

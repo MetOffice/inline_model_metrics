@@ -17,9 +17,9 @@ from tempest_helper import (
     plot_trajectories_cartopy,
     save_trajectories_netcdf,
     storms_overlap_in_time,
-    storms_overlap_in_space,
+    storm_overlap_in_space,
     write_track_line,
-    rewrite_track_file
+    remove_duplicates_from_track_files
 )
 
 
@@ -468,10 +468,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 files_to_tar = []
                 if len(files) > 0:
                     for f in files:
-                        cmd = "mv " + f + " " + os.path.join(outdir,
-                                                             self._archived_files_dir)
-                        sts = self._run_cmd(cmd, check=True)
-                        self.logger.debug(f"{cmd} {sts.stdout}")
+                        os.rename(f, os.path.join(outdir, self._archived_files_dir, f))
                         files_to_tar.append(os.path.join(subdir,
                                                          self._archived_files_dir,
                                                          os.path.basename(f)))
@@ -537,10 +534,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 files = sorted(glob.glob(candidate_files_to_tidy))
                 if len(files) > 0:
                     for f in files:
-                        #TODO change mv command to a Python os.rename()
-                        cmd = "mv " + f + " " + os.path.join(outdir, "tidy")
-                        sts = self._run_cmd(cmd, check=True)
-                        self.logger.debug(f"{cmd} {sts.stdout}")
+                        os.rename(f, os.path.join(outdir, "tidy", f))
 
                 tracked_files_tidy = os.path.join(
                     outdir,
@@ -549,9 +543,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 files = sorted(glob.glob(tracked_files_tidy))
                 if len(files) > 0:
                     for f in files:
-                        cmd = "mv " + f + " "  + os.path.join(outdir, "tidy")
-                        sts = self._run_cmd(cmd, check=True)
-                        self.logger.debug(f"{cmd} {sts.stdout}")
+                        os.rename(f, os.path.join(outdir, "tidy", f))
 
             # archive all the files at the end of the run
             if self.is_last_cycle == 'true':
@@ -1068,7 +1060,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         self.logger.debug(f"storms overlap in time {len(storms_time)}")
                         # self.logger.debug(f"storms_time {storms_time}")
                         # self.logger.debug(f"storm_c {storm_c}")
-                        storms_space = storms_overlap_in_space(storm_c, storms_time)
+                        storms_space = storm_overlap_in_space(storm_c, storms_time)
                         # self.logger.debug(f"storms_space {storms_space}")
                         if storms_space is not None:
                             storms_time_space_match.append(storms_space)
@@ -1077,7 +1069,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
                 self.logger.debug(f"storms_time_space_match "
                                   f"{len(storms_time_space_match)}")
-                rewrite_track_file(
+                remove_duplicates_from_track_files(
                     tracked_file_previous,
                     tracked_file_current,
                     tracked_file_previous_adjust,

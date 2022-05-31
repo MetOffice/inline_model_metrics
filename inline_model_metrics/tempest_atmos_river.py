@@ -169,7 +169,7 @@ class TempestExtremesAR(TempestExtremesAbstract):
             self.logger.debug(f"Running {ar_type} detection")
             candidatefile = os.path.join(
                 self.outdir,
-                f"{self.um_runid}_ARmask_{timestamp}_{ar_type}.txt",
+                f"{self.um_runid}_ARmask_{timestamp}_{ar_type}.nc",
             )
             self.logger.debug(f"candidatefile {candidatefile}")
 

@@ -169,7 +169,7 @@ class TempestExtremesAR(TempestExtremesAbstract):
             self.logger.debug(f"Running {ar_type} detection")
             candidatefile = os.path.join(
                 self.outdir,
-                f"{self.um_runid}_AR_{timestamp}_{ar_type}.txt",
+                f"{self.um_runid}_ARmask_{timestamp}_{ar_type}.nc",
             )
             self.logger.debug(f"candidatefile {candidatefile}")
 
@@ -194,10 +194,7 @@ class TempestExtremesAR(TempestExtremesAbstract):
                 self.logger.debug(f"file_list {text_str}")
                 fh.write(text_str)
 
-            fname = self.processed_files[timestamp]["viwve"]
-            ARmask = fname.replace("viwve", "ARmask")
-
-            cmd_io += '--in_data_list '+in_file_list+' --out '+ARmask+' '
+            cmd_io += '--in_data_list '+in_file_list+' --out '+candidatefile+' '
 
             tracking_phase_commands = self._construct_command(ar_type)
             cmd_detectblobs = cmd_io + tracking_phase_commands["detectblobs"]
@@ -220,7 +217,7 @@ class TempestExtremesAR(TempestExtremesAbstract):
                 )
                 raise RuntimeError(msg)
 
-        return ARmask
+        return candidatefile
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""

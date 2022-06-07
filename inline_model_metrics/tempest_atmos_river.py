@@ -89,7 +89,7 @@ class TempestExtremesAR(TempestExtremesAbstract):
         candidate_files = []
         self._write_dot_track_file(timestamp_day, timestamp_endday, dot_file=dot_file)
 
-        dot_tracking_files = sorted(glob.glob(os.path.join(self.outdir, dot_file+'*')))
+        dot_tracking_files = sorted(glob.glob(os.path.join(self.outdir, dot_file+"*")))
         self.logger.debug(f"dot_tracking_files {dot_tracking_files}")
 
         # loop through all dot files
@@ -99,8 +99,8 @@ class TempestExtremesAR(TempestExtremesAbstract):
         # no conflict with writing if postproc on the next step might be running)
         if dot_tracking_files:
             for do_track_file in dot_tracking_files:
-                ftimestamp_day = do_track_file.split('.')[1].split("-")[0]
-                ftimestamp_endday = do_track_file.split('.')[1].split('-')[1]
+                ftimestamp_day = do_track_file.split(".")[1].split("-")[0]
+                ftimestamp_endday = do_track_file.split(".")[1].split("-")[1]
 
                 # do not want to do calculations on data after or equal to the current
                 # cycle date, unless it is also the last
@@ -120,13 +120,15 @@ class TempestExtremesAR(TempestExtremesAbstract):
 
                 for regrid_resol in self.regrid_resolutions:
                     self.outdir = self.output_directory+'_'+regrid_resol
-                    fname = self._file_pattern_processed(ftimestamp_day + "*", "*", "viwve",
+                    fname = self._file_pattern_processed(ftimestamp_day + "*", "*",
+                                                         "viwve",
                                                          frequency=self.data_frequency)
                     file_search = os.path.join(self.outdir, fname)
                     if glob.glob(file_search):
                         processed_files, variable_units = \
-                        self._identify_processed_files(ftimestamp_day, ftimestamp_endday,
-                                            grid_resol=regrid_resol)
+                        self._identify_processed_files(ftimestamp_day,
+                                                       ftimestamp_endday,
+                                                       grid_resol=regrid_resol)
                         #self.source_files[ftimestamp_day] = source_files
                         self.processed_files[ftimestamp_day] = processed_files
                         self.processed_files_slp[regrid_resol] = \
@@ -134,24 +136,26 @@ class TempestExtremesAR(TempestExtremesAbstract):
                         self.variable_units = variable_units
 
                         # run TempestExtremes detect blobs
-                        candidate_files = self._run_detect_blobs(ftimestamp_day)
-                        # if this timestep has worked OK, then need to remove the dot_file
-                        # (the data is needed later)
-                        self._remove_dot_track_file(timestamp_previous, timestamp_day)
+                        candidate_file = self._run_detect_blobs(ftimestamp_day)
+
+                        # archive this data
+                        self._archive_ar_data(self.outdir, candidate_file)
+
+                        # if this timestep has worked OK, then need to remove
+                        # the dot_file
+                        self._remove_dot_track_file(ftimestamp_day, ftimestamp_endday,
+                                                    dot_file=dot_file)
+
+                        # at this point, I can delete the processed input data
+                        if self.delete_processed:
+                            self._tidy_data_files(timestamp_previous, timestamp_day,
+                                                  self.variables_rename)
 
                     else:
                         self.logger.debug(f"no files to process for timestamp "
                                           f"{ftimestamp_day}")
         else:
             self.logger.error(f"no dot files to process ")
-
-        # at this point, I can delete the input data for the T-2 timestep
-        if self.delete_processed:
-            self._tidy_data_files(timestamp_tm2, timestamp_tm1)
-
-        # if self.delete_source:
-        #    self._tidy_data_files(timestamp_previous, timestamp_day,
-        #    f_remove = 'source')
 
     def _run_detect_blobs(self, timestamp):
         """
@@ -188,13 +192,13 @@ class TempestExtremesAR(TempestExtremesAbstract):
                 else:
                     fnames.append(self.processed_files[timestamp][key])
 
-            in_file_list = os.path.join(self.outdir, 'in_file_list_detectblobs.txt')
+            in_file_list = os.path.join(self.outdir, "in_file_list_detectblobs.txt")
             with open(in_file_list, "w") as fh:
-                text_str = ';'.join(fnames)
+                text_str = ";".join(fnames)
                 self.logger.debug(f"file_list {text_str}")
                 fh.write(text_str)
 
-            cmd_io += '--in_data_list '+in_file_list+' --out '+candidatefile+' '
+            cmd_io += "--in_data_list "+in_file_list+" --out "+candidatefile+" "
 
             tracking_phase_commands = self._construct_command(ar_type)
             cmd_detectblobs = cmd_io + tracking_phase_commands["detectblobs"]
@@ -219,6 +223,24 @@ class TempestExtremesAR(TempestExtremesAbstract):
 
         return candidatefile
 
+    def _archive_ar_data(self, outdir, ar_file):
+        """
+        Archive the required AR data
+        :param str outdir: output directory
+        :param str ar_file: file to archive
+        """
+        if not os.path.exists(os.path.join(outdir, self._archived_files_dir)):
+            os.makedirs(os.path.join(outdir, self._archived_files_dir))
+
+        # move ar_file to archive directory
+        if os.path.exists(ar_file):
+            ar_archive_file = os.path.join(outdir, self._archived_files_dir,
+                                            os.path.basename(ar_file))
+            os.rename(ar_file, ar_archive_file)
+
+            with open(ar_archive_file + ".arch", "a"):
+                os.utime(ar_archive_file + ".arch", None)
+
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""
 
@@ -230,6 +252,6 @@ class TempestExtremesAR(TempestExtremesAbstract):
         # track_types is a Python list so eval converts str to list
         self.ar_types = eval(self.app_config.get_property("common", "ar_types"))
         self.variables_input = eval(self.app_config.get_property("common",
-                                                                 "ar_variables_input"))
+                                                                "ar_variables_input"))
         self.variables_rename = eval(self.app_config.get_property("common",
-                                                                 "ar_variables_rename"))
+                                                                "ar_variables_rename"))

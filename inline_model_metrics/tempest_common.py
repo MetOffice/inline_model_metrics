@@ -115,39 +115,29 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         if os.path.exists(do_tracking_file):
             os.system('rm '+do_tracking_file)
 
-    def _tidy_data_files(self, timestamp, timestamp_end, dot_file='do_tracking',
+    def _tidy_data_files(self, timestamp, timestamp_end, var_list,
                          f_remove='processed'):
         """
-        Remove input files and tracking dot file for this timestamp (tidy up)
+        Remove processed input files for this timestamp (tidy up)
 
         :param str timestamp: The timestep of the start of the data period to process
         :param str timestamp_end: The timestep of the end of the data period to process
-        :param str dot_file: The first part of the string of a filename to indicate
-        :                    which time periods still need tracking
+        :param list var_list: List of variable names for file pattern deletion
         :param str f_remove: An indicator of which files need to be deleted.
                    processed = the (regridded) files read by the tracking code
                    source    = the files produced by the model
         """
         self.logger.info(f"Tidy up input files")
         files_remove = []
-        source_files, processed_files = self._generate_file_names(timestamp,
-                                                                  timestamp_end)
+        #source_files, processed_files = self._generate_file_names(timestamp,
+        #                                                          timestamp_end)
 
         if f_remove == 'processed':
-            files_remove = processed_files
-            files_remove.pop('orog', None)
-        elif f_remove == 'source':
-            if self.delete_source:
-                files_remove = source_files
-                files_remove.pop('orog', None)
-
-        for v in files_remove:
-            self.logger.info(f"Tidy data remove {files_remove[v]}")
-            os.remove(files_remove[v])
-
-        # if f_remove == 'processed':
-        #    self._remove_dot_track_file(timestamp, timestamp_end, dot_file = dot_file)
-        # self.logger.debug(f"removed dot file {timestamp}")
+            for var in var_list:
+                f = self._file_pattern_processed(timestamp, timestamp_end, var,
+                                                 frequency=self.data_frequency)
+                if os.path.exists(os.path.join(self.outdir, f)):
+                    os.remove(os.path.join(self.outdir, f))
 
     def _tidy_track_files(
         self,
@@ -205,13 +195,15 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                     date_start=timestart,
                     variable=varname
                 )
-        self.logger.info(f"fname from pattern {fname} {um_stream} {timestart} {timeend} {varname}")
+        self.logger.info(f"fname from pattern {fname} {um_stream} {timestart} "
+                        f"{timeend} {varname}")
         return fname.strip('"')
 
     def _file_pattern_processed(self, timestart, timeend, varname,
                                 frequency='6h'):
         """
-        For processed files, we know what the filenames look like, so search specifically
+        For processed files, we know what the filenames look like, so
+        search specifically
 
         :param str timestart: The timestep of the start of the data period to process
         :param str timeend: The timestep of the end of the data period to process
@@ -269,8 +261,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                 step_arguments = []
                 for parameter in sorted(list(step_config.keys())):
                     if step_config[parameter]:
-                        print('param ',step, parameter, step_config[parameter])
-                        if '_default' in step_config[parameter]:
+                        if "_default" in step_config[parameter]:
                             if "outputcmd" in step_config[parameter]:
                                 param_value = self.outputcmd_detect_default
                             elif "in_fmt_stitch" in step_config[parameter]:
@@ -282,7 +273,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                             elif "out_fmt_profile2" in step_config[parameter]:
                                 param_value = self.out_fmt_profile2_default
                                 fmt_value['profile'] = self.out_fmt_profile2_default
-                            print('_default in ', step_config[parameter], param_value)
                         else:
                             param_value = step_config[parameter]
                             if "in_fmt" in parameter:
@@ -294,7 +284,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
 
 
                 commands[step] = " ".join(step_arguments)
-                print('step, commands ',step, commands[step])
+                self.logger.debug(f"step, commands {step} {commands[step]}")
             except:
                 commands[step] = None
 
@@ -328,7 +318,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
 
         :param list fnames: filenames in which to check coord names
         """
-        print('regrid ',fnames)
         for fname in fnames:
             cube = iris.load_cube(fname)
             time_name = cube.coord('time').var_name
@@ -338,7 +327,8 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                 self.logger.debug(f"cmd {cmd}")
                 subprocess.call(cmd, shell=True)
                 cmd = os.path.join(self.ncodir, "ncrename") + \
-                        " -d " + time_name + ",time -v " + time_name + ",time " + fname+".nc3"
+                        " -d " + time_name + ",time -v " + time_name +\
+                        ",time " + fname+".nc3"
                 self.logger.debug(f"cmd {cmd}")
                 subprocess.call(cmd, shell=True)
 
@@ -394,7 +384,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
 
         return source_filenames, processed_filenames
 
-    def _identify_processed_files(self, time_start, time_end, grid_resol='native'):
+    def _identify_processed_files(self, time_start, time_end, grid_resol="native"):
         """
         Identify the processed input files to be used by tracking.
         The files have pseudo-CMIP6 filenames, using the processed variable names
@@ -416,7 +406,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             self.outdir, "orography.nc"
         )
         cube = iris.load_cube(processed_filenames["orog"])
-        variable_units['orog'] = cube.units
+        variable_units["orog"] = cube.units
 
         #TODO self.resolution_code is set in two places in the code
         longitude_size = cube.shape[-1]
@@ -424,12 +414,12 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         self.resolution_code = f"N{resolution}"
 
         if not os.path.exists(os.path.dirname(self.outdir)):
-            raise Exception("Processed file directory does not exist, should come from pre-processing "\
-                            +self.outdir)
+            raise Exception("Processed file directory does not exist, should come "\
+                    "from pre-processing " + self.outdir)
 
         for var_name in self.variables_rename:
-            # identify the processed path filename similar to CMIP6 naming, will be standard
-            # regardless of the input filename structure
+            # identify the processed path filename similar to CMIP6 naming,
+            # will be standard regardless of the input filename structure
             # varname_new, freq, time,
             output_path = self._file_pattern_processed(time_start,
                                                        time_end,
@@ -443,13 +433,12 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                 cube = iris.load_cube(output_path)
                 cube = iris.util.squeeze(cube)
                 variable_units[var_name] = cube.units
-                if var_name == 'uas':
-                    variable_units['sfcWind'] = cube.units
-                    variable_units['wind'] = cube.units
+                if var_name == "uas":
+                    variable_units["sfcWind"] = cube.units
+                    variable_units["wind"] = cube.units
             else:
                 raise Exception("Processed file does not exist "+output_path)
 
-            print ('incoming path ', [output_path])
             self._check_time_coord([output_path])
 
         self.logger.debug(f"Orography file {processed_filenames['orog']}")
@@ -472,8 +461,8 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             "common", "delete_source"
         )
         self.plot_tracks = self.app_config.get_bool_property("common", "plot_tracks")
-        self.nodeedit_vars = eval(self.app_config.get_property("common",
-                                                               "nodeedit_vars"))
+        #self.nodeedit_vars = eval(self.app_config.get_property("common",
+        #                                                       "nodeedit_vars"))
         self.um_file_pattern = self.app_config.get_property("common",
                                                             "um_file_pattern")
         self.file_pattern_processed = self.app_config.get_property("common",
@@ -482,10 +471,14 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             eval(self.app_config.get_property("common", "regrid_resolutions"))
         self.data_frequency = self.app_config.get_property("common",
                                                             "data_frequency")
-        self.outputcmd_detect_default = self.app_config.get_property("common", "outputcmd_detect_default")
-        self.in_fmt_stitch_default = self.app_config.get_property("common", "in_fmt_stitch_default")
-        self.out_fmt_profile1_default = self.app_config.get_property("common", "out_fmt_profile1_default")
-        self.out_fmt_profile2_default = self.app_config.get_property("common", "out_fmt_profile2_default")
+        self.outputcmd_detect_default = self.app_config.get_property("common",
+                                                            "outputcmd_detect_default")
+        self.in_fmt_stitch_default = self.app_config.get_property("common",
+                                                            "in_fmt_stitch_default")
+        self.out_fmt_profile1_default = self.app_config.get_property("common",
+                                                            "out_fmt_profile1_default")
+        self.out_fmt_profile2_default = self.app_config.get_property("common",
+                                                            "out_fmt_profile2_default")
 
     def _get_environment_variables(self):
         """

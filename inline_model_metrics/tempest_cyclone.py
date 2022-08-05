@@ -82,11 +82,12 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
             f"um_runid {self.um_runid}"
         )
 
-        timestamp_day = self.cylc_task_cycle_time[:8]
-        timestamp_endday = self.next_cycle[:8]
+        timestamp_current = self.cylc_task_cycle_time[:8]
+        timestamp_next = self.next_cycle[:8]
         timestamp_previous = self.previous_cycle[:8]
         timestamp_tm2 = self.tm2_cycle[:8]
-        self.logger.debug(f"timestamp_day at top {timestamp_day}")
+        timestamp_tp2 = self.tp2_cycle[:8]
+        self.logger.debug(f"timestamp_day at top {timestamp_current}")
         self.logger.debug(f"startdate {self.startdate}")
         self.logger.debug(f"enddate {self.enddate}")
         self.logger.debug(f"lastcycle {self.lastcycle}")
@@ -94,11 +95,12 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         self.logger.debug(f"tm2_cycle {self.tm2_cycle}")
         self.logger.debug(f"next_cycle {self.next_cycle}")
         self.logger.debug(f"is_last_cycle {self.is_last_cycle}")
+        self.logger.debug(f"inline_tracking {self.inline_tracking}")
 
         # First write a dot_file to document which timestamps are yet to be tracked
         dot_file = "do_tracking"
         candidate_files = []
-        self._write_dot_track_file(timestamp_day, timestamp_endday, dot_file=dot_file)
+        self._write_dot_track_file(timestamp_current, timestamp_next, dot_file=dot_file)
 
         dot_tracking_files = sorted(glob.glob(os.path.join(self.outdir, dot_file+'*')))
         self.logger.debug(f"dot_tracking_files {dot_tracking_files}")
@@ -112,16 +114,18 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
             for do_track_file in dot_tracking_files:
                 ftimestamp_day = do_track_file.split('.')[1].split("-")[0]
                 ftimestamp_endday = do_track_file.split('.')[1].split('-')[1]
+                self.logger.debug(f"running dot file {do_track_file} {ftimestamp_day}")
+                if self.inline_tracking == "True":
+                    self.logger.debug(f"running inline {self.inline_tracking}")
+                    # do not want to do calculations on data after or equal to the current
+                    # cycle date, unless it is also the last
+                    if _is_date_after_or_equal(ftimestamp_day, timestamp_current) \
+                            and not self.is_last_cycle == "true":
+                        continue
 
-                # do not want to do calculations on data after or equal to the current
-                # cycle date, unless it is also the last
-                if _is_date_after_or_equal(ftimestamp_day, timestamp_day) \
-                        and not self.is_last_cycle == "true":
-                    continue
-
-                # if timestamp_previous is before the start date then no work
-                if _is_date_after(self.startdate, timestamp_previous):
-                    continue
+                    # if timestamp_previous is before the start date then no work
+                    if _is_date_after(self.startdate, timestamp_previous):
+                        continue
 
                 # find the relevant input data using the given file pattern
                 fname = self._file_pattern_processed(ftimestamp_day+"*", "*", "slp",
@@ -138,7 +142,6 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         processed_files, variable_units = \
                         self._identify_processed_files(ftimestamp_day,
                                             ftimestamp_endday, grid_resol=regrid_resol)
-                        #self.source_files[ftimestamp_day] = source_files
                         self.processed_files[ftimestamp_day] = processed_files
                         self.processed_files_slp[regrid_resol] = \
                             self.processed_files[ftimestamp_day]["slp"]
@@ -156,14 +159,27 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         else:
             self.logger.error(f"no dot files to process ")
 
+        # if we run inline, then we need to wait one extra time level, if not then
+        # can use time level one later
+        if self.inline_tracking == "True":
+            timestep_tm2 = timestamp_tm2
+            timestep_tm1 = timestamp_previous
+            timestep_t = timestamp_current
+            timestep_tp1 = timestamp_next
+        else:
+            timestep_tm2 = timestamp_previous
+            timestep_tm1 = timestamp_current
+            timestep_t = timestamp_next
+            timestep_tp1 = timestamp_tp2
+
         # Run the tracking and node editing for T-2, T-1 files
-        self._run_tracking_and_editing(timestamp_tm2, timestamp_previous,
-                                       timestamp_day, do_lastcycle=False)
+        self._run_tracking_and_editing(timestep_tm2, timestep_tm1,
+                                       timestep_t, do_lastcycle=False)
 
         # Run the tracking and node editing for T-1, T files if last timestep of run
         if self.is_last_cycle == "true":
-            self._run_tracking_and_editing(timestamp_previous, timestamp_day,
-                                           timestamp_endday, do_lastcycle=True)
+            self._run_tracking_and_editing(timestep_tm1, timestep_t,
+                                           timestep_tp1, do_lastcycle=True)
 
     def _run_tracking_and_editing(
         self,
@@ -221,11 +237,13 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 )
 
                 # archive the track files
-                self._archive_track_data(outdir, timestamp_previous, timestamp_day)
+                self._archive_track_data(outdir, timestamp_tm2, timestamp_tm1,
+                                         do_lastcycle=do_lastcycle)
 
         # at this point, I can delete the input data for the T-2 timestep
-        if self.delete_processed:
-            self._tidy_data_files(timestamp_tm2,
+        if not do_lastcycle:
+            if self.delete_processed:
+                self._tidy_data_files(timestamp_tm2,
                                   timestamp_previous,
                                   self.variables_rename)
 
@@ -270,6 +288,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
             self._collect_and_write_tracks(
                 outdir,
+                timestamp_t,
                 timestamp_tm1,
                 timestamp_tm2,
                 processed_files_slp
@@ -277,6 +296,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
         self._collect_and_write_tracks(
             outdir,
+            timestamp_t,
             timestamp_tm1,
             timestamp_tm2,
             processed_files_slp,
@@ -287,6 +307,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         if do_lastcycle:
             self._collect_and_write_tracks(
             outdir,
+            timestamp_t,
             timestamp_tm1,
             timestamp_tm2,
             processed_files_slp,
@@ -296,6 +317,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
     def _collect_and_write_tracks(
         self,
         outdir,
+        timestamp_next,
         timestamp_current,
         timestamp_previous,
         nc_file_in,
@@ -337,7 +359,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         outdir,
                         self._archived_files_dir,
                         f"{self.um_runid}_{trackname}_"
-                        f"{date_start}_{timestamp_current}_"
+                        f"{date_start}_{timestamp_next}_"
                         f"{track_type}_endrun.txt"
                     )
                     tracked_file_last = os.path.join(
@@ -356,6 +378,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
             if test_new_year and self._is_new_year:
                 do_year = self._old_year_value
+                # all adjust_b files from a given year together make that year of tracks
                 tracked_file_search_year = os.path.join(
                     outdir,
                     f"{self.um_runid}_{trackname}_{do_year}????_????????_"
@@ -415,7 +438,8 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     write_to_netcdf=True
                 )
 
-    def _archive_track_data(self, outdir, timestamp_previous, timestamp_day):
+    def _archive_track_data(self, outdir, timestamp_previous, timestamp_day,
+                            do_lastcycle=False):
         """
         Set up archiving of the required data by producing .arch file beside any
         file needing to be archived, and um_postprocess will do archiving
@@ -435,7 +459,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
             self.logger.debug(f"Archive, is new year? {self._is_new_year}")
             # archive the annual files or remaining files at end of run
-            if self._is_new_year or self.is_last_cycle == "true":
+            if self._is_new_year or do_lastcycle:
                 # first move (if new year) or copy (if end of run) the files to the
                 # archive directory, and then add .arch archive indicator
                 if self._is_new_year:
@@ -479,6 +503,8 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     sts = self._run_cmd(cmd, check=False)
                     with open(candidate_file_year_tar + ".arch", "a"):
                         os.utime(candidate_file_year_tar + ".arch", None)
+                    for f in files_to_tar:
+                        os.remove(f)
 
                 tracked_file_adjust_b = os.path.join(
                     outdir,
@@ -491,13 +517,14 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     f"{track_type}_adjust_f.txt"
                 )
                 files_year = sorted(glob.glob(tracked_file_adjust_b))
-                if self.is_last_cycle == "true":
+                if do_lastcycle:
                     if os.path.exists(tracked_file_adjust_f):
-                        files_year.append(tracked_file_adjust_f)
+                        files_year.extend([tracked_file_adjust_f])
+
                 if len(files_year) > 0:
                     for f in files_year:
                         if file_command == "move":
-                            os.replace(f, os.path.join(outdir, self._archived_files_dir))
+                            os.replace(f, os.path.join(outdir, self._archived_files_dir, os.path.basename(f)))
                         else:
                             shutil.copy(f, os.path.join(outdir, self._archived_files_dir))
 
@@ -532,6 +559,8 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         sts = self._run_cmd(cmd, check=False)
                         with open(tracked_files_adjust_b_tar + ".arch", "a"):
                             os.utime(tracked_files_adjust_b_tar + ".arch", None)
+                    for f in files_to_tar:
+                        os.remove(f)
 
                 tracked_file_final = os.path.join(
                     outdir,
@@ -565,20 +594,25 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         for f in files:
                             os.replace(f, os.path.join(outdir, "tidy",
                                                        os.path.basename(f)))
-
+            print('why not do this bit ',do_lastcycle)
             # archive track the files at the end of the run
-            if self.is_last_cycle == 'true':
+            if do_lastcycle:
                 do_year = self._current_year_value
                 tracked_file_endrun = os.path.join(
                     outdir,
                     self._archived_files_dir,
-                    f"{self.um_runid}_{trackname}_{year}????_????????_{track_type}"
-                    f"_endrun"
+                    f"{self.um_runid}_{trackname}_{do_year}????_????????_{track_type}"
+                    f"_endrun*"
                 )
-                for f_ending in [".txt", ".nc"]:
-                    if os.path.exists(tracked_file_endrun+f_ending):
-                        with open(tracked_file_endrun + f_ending + ".arch", "a"):
-                            os.utime(tracked_file_endrun + f_ending + ".arch", None)
+                tracked_files = sorted(glob.glob(tracked_file_endrun))
+                print('last cycle, endrun ',tracked_files, tracked_file_endrun)
+                if len(tracked_files) > 0:
+                    for f in tracked_files:
+                        f_ending = f[-3:]
+                        print('file ending ',f_ending)
+                        if f_ending in ["txt", ".nc"]:
+                            with open(f + ".arch", "a"):
+                                os.utime(f + ".arch", None)
 
         # run the archiving on any .arch files that exist - this is now
         # in um_postprocess

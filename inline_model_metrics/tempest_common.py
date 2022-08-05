@@ -28,7 +28,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         # Instance attributes set later from Rose config
         self.time_range = None
         self.frequency = None
-        self.resolution_code = None
         self.cmd_detect_type = {}
         self.cmd_stitch_type = {}
         self.cmd_edit_type = {}
@@ -176,10 +175,10 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         else:
             file_freq = str(self.data_frequency)
 
-        if self.um_file_pattern != '':
-            if 'atmos' in self.um_file_pattern:
+        if self.input_file_pattern != '':
+            if 'atmos' in self.input_file_pattern:
                 # file format from postproc
-                fname = self.um_file_pattern.format(
+                fname = self.input_file_pattern.format(
                     runid=self.um_runid,
                     frequency=file_freq,
                     date_start=timestart,
@@ -189,7 +188,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                 )
             else:
                 # file format from direct STASH to netcdf conversion
-                fname = self.um_file_pattern.format(
+                fname = self.input_file_pattern.format(
                     runid=self.um_runid,
                     stream=um_stream,
                     date_start=timestart,
@@ -408,11 +407,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         cube = iris.load_cube(processed_filenames["orog"])
         variable_units["orog"] = cube.units
 
-        #TODO self.resolution_code is set in two places in the code
-        longitude_size = cube.shape[-1]
-        resolution = longitude_size // 2
-        self.resolution_code = f"N{resolution}"
-
         if not os.path.exists(os.path.dirname(self.outdir)):
             raise Exception("Processed file directory does not exist, should come "\
                     "from pre-processing " + self.outdir)
@@ -463,8 +457,8 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         self.plot_tracks = self.app_config.get_bool_property("common", "plot_tracks")
         #self.nodeedit_vars = eval(self.app_config.get_property("common",
         #                                                       "nodeedit_vars"))
-        self.um_file_pattern = self.app_config.get_property("common",
-                                                            "um_file_pattern")
+        self.input_file_pattern = self.app_config.get_property("common",
+                                                            "input_file_pattern")
         self.file_pattern_processed = self.app_config.get_property("common",
                                                             "file_pattern_processed")
         self.regrid_resolutions = \
@@ -496,17 +490,19 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             self.um_suiteid = os.environ["SUITEID_OVERRIDE"]
         except:
             self.um_suiteid = os.environ["CYLC_SUITE_NAME"]
+        self.resolution_code = os.environ["RESOL_ATM"]
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
         self.time_cycle = os.environ["TIME_CYCLE"]
         self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
         self.tm2_cycle = os.environ["TM2_CYCLE"]
+        self.tp2_cycle = os.environ["TP2_CYCLE"]
         self.next_cycle = os.environ["NEXT_CYCLE"]
         self.startdate = os.environ["STARTDATE"]
         self.enddate = os.environ["ENDDATE"]
         self.lastcycle = os.environ["LASTCYCLE"]
         self.is_last_cycle = os.environ["IS_LAST_CYCLE"]
         self.ncodir = os.environ["NCODIR"]
-
+        self.inline_tracking = os.environ["INLINE_TRACKING"]
 
 def _is_date_after(timetest, timeref):
     """

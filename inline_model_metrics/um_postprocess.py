@@ -86,9 +86,9 @@ class UMTempestPostprocess(AbstractApp):
             # process the AR files before archiving
             self._process_ar_for_archive(os.path.join(self.outdir,
                                                       self._archived_files_dir))
-
-            # run the archiving on any .arch files that exist
-            self._archive_tracking_to_mass(os.path.join(self.outdir,
+            if self.um_archive_to_mass:
+                # run the archiving on any .arch files that exist
+                self._archive_tracking_to_mass(os.path.join(self.outdir,
                                                         self._archived_files_dir))
 
         # delete source data if required
@@ -182,8 +182,8 @@ class UMTempestPostprocess(AbstractApp):
 
                 if fname[-2:] == "nc":
                     # convert time coordinate to unlimited
-                    cmd = "ncks --mk_rec_dmn time " + fname + " " + fname[:-3] +\
-                          "_unlimited.nc"
+                    cmd = os.path.join(self.ncodir, "ncks") + " --mk_rec_dmn time " + \
+                          fname + " " + fname[:-3] + "_unlimited.nc"
                     sts = subprocess.run(
                         cmd,
                         shell=True,
@@ -221,10 +221,10 @@ class UMTempestPostprocess(AbstractApp):
         else:
             file_freq = str(self.frequency)+"h"
 
-        if self.um_file_pattern != '':
-            if "atmos" in self.um_file_pattern:
+        if self.input_file_pattern != '':
+            if "atmos" in self.input_file_pattern:
                 # file format from postproc
-                fname = self.um_file_pattern.format(
+                fname = self.input_file_pattern.format(
                     runid=self.um_runid,
                     frequency=file_freq,
                     date_start=timestart,
@@ -234,7 +234,7 @@ class UMTempestPostprocess(AbstractApp):
                 )
             else:
                 # file format from direct STASH to netcdf conversion
-                fname = self.um_file_pattern.format(
+                fname = self.input_file_pattern.format(
                     runid=self.um_runid,
                     stream=um_stream,
                     date_start=timestart,
@@ -266,8 +266,8 @@ class UMTempestPostprocess(AbstractApp):
         self.delete_source = self.app_config.get_bool_property(
             "common", "delete_source"
         )
-        self.um_file_pattern = self.app_config.get_property("common",
-                                                            "um_file_pattern")
+        self.input_file_pattern = self.app_config.get_property("common",
+                                                            "input_file_pattern")
         self.file_pattern_processed = self.app_config.get_property("common",
                                                             "file_pattern_processed")
         self.regrid_resolutions = eval(self.app_config.get_property(
@@ -276,6 +276,8 @@ class UMTempestPostprocess(AbstractApp):
         ))
         self.data_frequency = self.app_config.get_property("common",
                                                             "data_frequency")
+        self.um_archive_to_mass = self.app_config.get_bool_property("common",
+                                                            "um_archive_to_mass")
 
     def _get_environment_variables(self):
         """
@@ -294,3 +296,4 @@ class UMTempestPostprocess(AbstractApp):
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
         self.next_cycle = os.environ["NEXT_CYCLE"]
         self.tm2_cycle = os.environ["TM2_CYCLE"]
+        self.ncodir = os.environ["NCODIR"]

@@ -37,7 +37,6 @@ class UMTempestPreprocess(AbstractApp):
         # Instance attributes set later
         self.time_range = None
         self.frequency = None
-        self.resolution_code = None
         self.regrid_resolutions = None
         self.outdir = None
 
@@ -119,26 +118,17 @@ class UMTempestPreprocess(AbstractApp):
         else:
             file_freq = str(self.frequency)+'h'
 
-        if self.um_file_pattern != '':
-            if 'atmos' in self.um_file_pattern:
-                # file format from postproc
-                fname = self.um_file_pattern.format(
-                    runid=self.um_runid,
-                    frequency=file_freq,
-                    date_start=timestart,
-                    date_end=timeend,
-                    stream=um_stream,
-                    variable=varname
-                )
-            else:
-                # file format from direct STASH to netcdf conversion
-                fname = self.um_file_pattern.format(
-                    runid=self.um_runid,
-                    stream=um_stream,
-                    date_start=timestart,
-                    variable=varname
-                )
-        self.logger.info(f"fname from pattern {fname} {um_stream} {timestart} "
+        if self.input_file_pattern != '':
+            # file format based on input pattern
+            fname = self.input_file_pattern.format(
+                runid=self.um_runid,
+                frequency=file_freq,
+                date_start=timestart,
+                date_end=timeend,
+                stream=um_stream,
+                variable=varname
+            )
+        self.logger.info(f"fname from _file_pattern {fname} {um_stream} {timestart} "
                         f"{timeend} {varname}")
         return fname.strip('"')
 
@@ -170,7 +160,7 @@ class UMTempestPreprocess(AbstractApp):
             variable=varname
         )
 
-        self.logger.info(f"fname from pattern {fname} {timestart} {timeend} {varname}")
+        self.logger.info(f"fname from _file_pattern_processed {fname} {timestart} {timeend} {varname}")
         return fname.strip('"')
 
     def _generate_data_files(self, timestamp, timestamp_end, grid_resol='native'):
@@ -193,7 +183,7 @@ class UMTempestPreprocess(AbstractApp):
             self.input_directory, fname
         )
         files = sorted(glob.glob(file_search))
-        self.logger.debug(f"file_search {file_search}, files {files}")
+        self.logger.debug(f"file_search in _generate_data_files {file_search}, files {files}")
         if not files:
             msg = f"No input files found for glob pattern {file_search}"
             self.logger.error(msg)
@@ -207,6 +197,7 @@ class UMTempestPreprocess(AbstractApp):
             file_elements = os.path.basename(filename).split("_")
             if len(file_elements) >= 3:
                 time_range = os.path.basename(filename).split("_")[3]
+                time_range = time_range.replace(".nc", "")
                 frequency = os.path.basename(filename).split("_")[2]
             else:
                 time_range = timestamp_day+'-'+timestamp_day
@@ -273,6 +264,22 @@ class UMTempestPreprocess(AbstractApp):
                 self.logger.debug(f"cmd {cmd}")
                 subprocess.call(cmd, shell=True)
 
+    def _check_um_resolution(self, cube, fname):
+        """
+        For UM model specifically, check that input resolution code agrees with
+        input file size
+        For UM, the n???e number is half of the number of zonal grid points
+        """
+        longitude_size = cube.shape[-1]
+        cube_resolution = longitude_size // 2
+        input_resolution = int(self.resolution_code[1:-1])
+        print('input, real resol ',self.resolution_code, cube_resolution)
+        if cube_resolution != input_resolution:
+            msg = f"Resolution of input file {fname} not consistent with resolution " + \
+                "code {self.resolution_code}"
+            self.logger.error(msg)
+            raise RuntimeError(msg)
+
     def _process_input_files(self, time_start, time_end, grid_resol="native"):
         """
         Identify and then fix the grids and var_names in the input files.
@@ -294,10 +301,11 @@ class UMTempestPreprocess(AbstractApp):
         # these variables need to have a new var_name, either because the default
         # from the UM is confusing or unknown, and these names are needed for the
         # variable name inputs for the TempestExtremes scripts
-        for var in self.variables_input:
+        for iv, var in enumerate(self.variables_input):
             variables_required[var] = {"fname": var}
-            if var in self.variables_rename:
-                variables_required[var].update({"varname_new": var})
+            #if var in self.variables_rename:
+            var_rename = self.variables_rename[iv]
+            variables_required[var].update({"varname_new": var_rename})
 
         reference_name = self._file_pattern(self.time_range.split('-')[0],
                                             self.time_range.split('-')[1],
@@ -309,25 +317,24 @@ class UMTempestPreprocess(AbstractApp):
 
         # Identify the grid and orography file
         if grid_resol == "native":
-            longitude_size = reference.shape[-1]
-            resolution = longitude_size // 2
-            # TODO self.resolution_code is set in two places in the code
-            self.resolution_code = f"N{resolution}"
+            self._check_um_resolution(reference, reference_path)
 
             # TODO HadGEM specific - make generic
             processed_filenames["orog"] = os.path.join(
-                self.orography_dir, f"orog_HadGEM3-GC31-{self.resolution_code}e.nc"
+                self.orography_dir, f"orography-{self.resolution_code}.nc"
             )
             shutil.copyfile(processed_filenames["orog"],
                             os.path.join(self.outdir, "orography.nc"))
         else:
-            resolution_code = f"N{grid_resol}"
             processed_filenames["orog"] = os.path.join(
-                self.orography_dir, f"orog_HadGEM3-GC31-{grid_resol}e.nc"
+                self.orography_dir, f"orography-{grid_resol}.nc"
             )
         cube_orog = iris.load_cube(processed_filenames["orog"])
         variable_units["orog"] = cube_orog.units
         reference = cube_orog
+        if cube_orog.var_name != "surface_altitude":
+            cube_orog.var_name = "surface_altitude"
+        cube_orog = iris.util.squeeze(cube_orog)
         iris.save(cube_orog, os.path.join(self.outdir, "orography.nc"))
 
         for var in self.variables_input:
@@ -450,8 +457,8 @@ class UMTempestPreprocess(AbstractApp):
                                                                  "variables_input"))
         self.variables_rename = eval(self.app_config.get_property("common",
                                                                  "variables_rename"))
-        self.um_file_pattern = self.app_config.get_property("common",
-                                                            "um_file_pattern")
+        self.input_file_pattern = self.app_config.get_property("common",
+                                                            "input_file_pattern")
         self.file_pattern_processed = self.app_config.get_property("common",
                                                             "file_pattern_processed")
         self.regrid_resolutions = eval(self.app_config.get_property(
@@ -471,5 +478,7 @@ class UMTempestPreprocess(AbstractApp):
             self.um_runid = os.environ["RUNID_OVERRIDE"]
         except:
             self.um_runid = os.environ["RUNID"]
+        self.resolution_code = os.environ["RESOL_ATM"]
+        print('resol in ',self.resolution_code)
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
         self.next_cycle = os.environ["NEXT_CYCLE"]

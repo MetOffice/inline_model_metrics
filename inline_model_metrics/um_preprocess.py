@@ -71,9 +71,15 @@ class UMTempestPreprocess(AbstractApp):
         # initialise variables that might not get set if no detection step
         self.outdir = self.output_directory + "_" + "native"
 
+        # find out what the slp variable is for the input data
+        if self.variables_rename[0] == "slp":
+            slp_input_var = self.variables_input[0]
+        else:
+            slp_input_var = "slp"
+
         self.logger.debug(
             f"CYLC_TASK_CYCLE_TIME {self.cylc_task_cycle_time}, "
-            f"um_runid {self.um_runid}"
+            f"runid {self.runid}"
         )
 
         timestamp_day = self.cylc_task_cycle_time[:8]
@@ -82,7 +88,7 @@ class UMTempestPreprocess(AbstractApp):
         # this section of code processes data from the current timestep
         current_time = timestamp_day
         # find the relevant input data using the given file pattern
-        fname = self._file_pattern(current_time + "*", "*", "slp",
+        fname = self._file_pattern(current_time + "*", "*", slp_input_var,
                                    um_stream="pt", frequency="*")
         file_search = os.path.join(self.input_directory, fname)
         self.logger.debug(f"file_search {file_search}")
@@ -94,7 +100,7 @@ class UMTempestPreprocess(AbstractApp):
                 self.outdir = self.output_directory + '_' + regrid_resol
                 source_files, processed_files, variable_units = \
                     self._generate_data_files(timestamp_day, timestamp_endday,
-                                              grid_resol=regrid_resol)
+                                              slp_input_var, grid_resol=regrid_resol)
                 #self._produce_derived_diagnostics(source_files, processed_files)
 
     def _file_pattern(self, timestart, timeend, varname, um_stream='pt',
@@ -121,15 +127,15 @@ class UMTempestPreprocess(AbstractApp):
         if self.input_file_pattern != '':
             # file format based on input pattern
             fname = self.input_file_pattern.format(
-                runid=self.um_runid,
+                runid=self.runid,
                 frequency=file_freq,
                 date_start=timestart,
                 date_end=timeend,
                 stream=um_stream,
                 variable=varname
             )
-        self.logger.info(f"fname from _file_pattern {fname} {um_stream} {timestart} "
-                        f"{timeend} {varname}")
+        self.logger.info(f"fname from _file_pattern {fname} {um_stream} {timestart}" +\
+                        f" {timeend} {varname}")
         return fname.strip('"')
 
     def _file_pattern_processed(self, timestart, timeend, varname,
@@ -153,17 +159,19 @@ class UMTempestPreprocess(AbstractApp):
             file_freq = str(self.frequency)+'h'
 
         fname = self.file_pattern_processed.format(
-            runid=self.um_runid,
+            runid=self.runid,
             frequency=file_freq,
             date_start=timestart,
             date_end=timeend,
             variable=varname
         )
 
-        self.logger.info(f"fname from _file_pattern_processed {fname} {timestart} {timeend} {varname}")
+        self.logger.info(f"fname from _file_pattern_processed {fname} {timestart} " + \
+                         "{timeend} {varname}")
         return fname.strip('"')
 
-    def _generate_data_files(self, timestamp, timestamp_end, grid_resol='native'):
+    def _generate_data_files(self, timestamp, timestamp_end,
+                             slp_var, grid_resol='native'):
         """
         Identify and then fix the grids and var_names in the input files.
         The time_range and frequency attributes are set when this method runs.
@@ -177,13 +185,14 @@ class UMTempestPreprocess(AbstractApp):
         """
         timestamp_day = timestamp
         self.logger.debug(f"timestamp_day in generate_data_files {timestamp_day}")
-        fname = self._file_pattern(timestamp_day+'*', '*', 'slp', um_stream='pt',
-                                   frequency='*')
+        fname = self._file_pattern(timestamp_day+"*", "*", slp_var, um_stream="pt",
+                                   frequency="*")
         file_search = os.path.join(
             self.input_directory, fname
         )
         files = sorted(glob.glob(file_search))
-        self.logger.debug(f"file_search in _generate_data_files {file_search}, files {files}")
+        self.logger.debug(f"file_search in _generate_data_files {file_search}, " + \
+                          "files {files}")
         if not files:
             msg = f"No input files found for glob pattern {file_search}"
             self.logger.error(msg)
@@ -235,7 +244,8 @@ class UMTempestPreprocess(AbstractApp):
                 self.frequency = int(components[1])
 
         source_files, processed_files, variable_units = \
-            self._process_input_files(timestamp, timestamp_end, grid_resol=grid_resol)
+            self._process_input_files(timestamp, timestamp_end,
+                                      slp_var, grid_resol=grid_resol)
 
         return source_files, processed_files, variable_units
 
@@ -273,14 +283,14 @@ class UMTempestPreprocess(AbstractApp):
         longitude_size = cube.shape[-1]
         cube_resolution = longitude_size // 2
         input_resolution = int(self.resolution_code[1:-1])
-        print('input, real resol ',self.resolution_code, cube_resolution)
+        print("input, real resol ",self.resolution_code, cube_resolution)
         if cube_resolution != input_resolution:
             msg = f"Resolution of input file {fname} not consistent with resolution " + \
                 "code {self.resolution_code}"
             self.logger.error(msg)
             raise RuntimeError(msg)
 
-    def _process_input_files(self, time_start, time_end, grid_resol="native"):
+    def _process_input_files(self, time_start, time_end, slp_var, grid_resol="native"):
         """
         Identify and then fix the grids and var_names in the input files.
         The variable names need to have a new var_name, either because the default
@@ -307,19 +317,20 @@ class UMTempestPreprocess(AbstractApp):
             var_rename = self.variables_rename[iv]
             variables_required[var].update({"varname_new": var_rename})
 
-        reference_name = self._file_pattern(self.time_range.split('-')[0],
-                                            self.time_range.split('-')[1],
-                                            variables_required["slp"]["fname"],
+        reference_name = self._file_pattern(self.time_range.split("-")[0],
+                                            self.time_range.split("-")[1],
+                                            variables_required[slp_var]["fname"],
                                             um_stream="pt")
         reference_path = os.path.join(self.input_directory, reference_name)
         reference = iris.load_cube(reference_path)
-        variable_units["slp"] = reference.units
+        variable_units[slp_var] = reference.units
 
         # Identify the grid and orography file
         if grid_resol == "native":
-            self._check_um_resolution(reference, reference_path)
+            # check resolution code in Met Office UM mdoel
+            if self.suiteid[0:2] == "u-":
+                self._check_um_resolution(reference, reference_path)
 
-            # TODO HadGEM specific - make generic
             processed_filenames["orog"] = os.path.join(
                 self.orography_dir, f"orography-{self.resolution_code}.nc"
             )
@@ -376,8 +387,8 @@ class UMTempestPreprocess(AbstractApp):
             cube = iris.util.squeeze(cube)
             ndims = cube.shape
             variable_units[var] = cube.units
-            if var == 'uas':
-                variable_units['sfcWind'] = cube.units
+            if var == "uas":
+                variable_units["sfcWind"] = cube.units
             self.logger.debug(f"regrid file {input_path}")
             regridded = cube.regrid(reference, iris.analysis.Linear())
             if "varname_new" in variables_required[var]:
@@ -475,9 +486,13 @@ class UMTempestPreprocess(AbstractApp):
         documentation.
         """
         try:
-            self.um_runid = os.environ["RUNID_OVERRIDE"]
+            self.runid = os.environ["RUNID_OVERRIDE"]
         except:
-            self.um_runid = os.environ["RUNID"]
+            self.runid = os.environ["RUNID"]
+        try:
+            self.suiteid = os.environ["RUNID_OVERRIDE"]
+        except:
+            self.suiteid = os.environ["RUNID"]
         self.resolution_code = os.environ["RESOL_ATM"]
         print('resol in ',self.resolution_code)
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]

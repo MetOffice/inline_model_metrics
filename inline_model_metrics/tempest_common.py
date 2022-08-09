@@ -179,7 +179,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             if 'atmos' in self.input_file_pattern:
                 # file format from postproc
                 fname = self.input_file_pattern.format(
-                    runid=self.um_runid,
+                    runid=self.runid,
                     frequency=file_freq,
                     date_start=timestart,
                     date_end=timeend,
@@ -189,7 +189,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             else:
                 # file format from direct STASH to netcdf conversion
                 fname = self.input_file_pattern.format(
-                    runid=self.um_runid,
+                    runid=self.runid,
                     stream=um_stream,
                     date_start=timestart,
                     variable=varname
@@ -219,7 +219,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             file_freq = str(self.data_frequency)
 
         fname = self.file_pattern_processed.format(
-            runid=self.um_runid,
+            runid=self.runid,
             frequency=file_freq,
             date_start=timestart,
             date_end=timeend,
@@ -483,13 +483,13 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
 
         # TODO check that the variables here match those in the documentation
         try:
-            self.um_runid = os.environ["RUNID_OVERRIDE"]
+            self.runid = os.environ["RUNID_OVERRIDE"]
         except:
-            self.um_runid = os.environ["RUNID"]
+            self.runid = os.environ["RUNID"]
         try:
-            self.um_suiteid = os.environ["SUITEID_OVERRIDE"]
+            self.suiteid = os.environ["SUITEID_OVERRIDE"]
         except:
-            self.um_suiteid = os.environ["CYLC_SUITE_NAME"]
+            self.suiteid = os.environ["CYLC_SUITE_NAME"]
         self.resolution_code = os.environ["RESOL_ATM"]
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
         self.time_cycle = os.environ["TIME_CYCLE"]

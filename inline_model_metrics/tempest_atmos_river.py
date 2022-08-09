@@ -68,7 +68,7 @@ class TempestExtremesAR(TempestExtremesAbstract):
 
         self.logger.debug(
             f"CYLC_TASK_CYCLE_TIME {self.cylc_task_cycle_time}, "
-            f"um_runid {self.um_runid}"
+            f"runid {self.runid}"
         )
 
         timestamp_day = self.cylc_task_cycle_time[:8]
@@ -102,15 +102,17 @@ class TempestExtremesAR(TempestExtremesAbstract):
                 ftimestamp_day = do_track_file.split(".")[1].split("-")[0]
                 ftimestamp_endday = do_track_file.split(".")[1].split("-")[1]
 
-                # do not want to do calculations on data after or equal to the current
-                # cycle date, unless it is also the last
-                if _is_date_after_or_equal(ftimestamp_day, timestamp_day) \
-                        and not self.is_last_cycle == "true":
-                    continue
+                if self.inline_tracking == "True":
+                    self.logger.debug(f"running inline {self.inline_tracking}")
+                    # do not want to do calculations on data after or equal to the current
+                    # cycle date, unless it is also the last
+                    if _is_date_after_or_equal(ftimestamp_day, timestamp_day) \
+                            and not self.is_last_cycle == "true":
+                        continue
 
-                # if timestamp_previous is before the start date then no work
-                if _is_date_after(self.startdate, timestamp_previous):
-                    continue
+                    # if timestamp_previous is before the start date then no work
+                    if _is_date_after(self.startdate, timestamp_previous):
+                        continue
 
                 # find the relevant input data using the given file pattern
                 fname = self._file_pattern_processed(ftimestamp_day+"*", "*", "slp",
@@ -173,7 +175,7 @@ class TempestExtremesAR(TempestExtremesAbstract):
             self.logger.debug(f"Running {ar_type} detection")
             candidatefile = os.path.join(
                 self.outdir,
-                f"{self.um_runid}_ARmask_{timestamp}_{ar_type}.nc",
+                f"{self.runid}_ARmask_{timestamp}_{ar_type}.nc",
             )
             self.logger.debug(f"candidatefile {candidatefile}")
 

@@ -79,7 +79,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
         self.logger.debug(
             f"CYLC_TASK_CYCLE_TIME {self.cylc_task_cycle_time}, "
-            f"um_runid {self.um_runid}"
+            f"runid {self.runid}"
         )
 
         timestamp_current = self.cylc_task_cycle_time[:8]
@@ -128,16 +128,17 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         continue
 
                 # find the relevant input data using the given file pattern
-                fname = self._file_pattern_processed(ftimestamp_day+"*", "*", "slp",
-                                           frequency=self.data_frequency)
-                file_search = os.path.join(self.input_directory, fname)
-                self.logger.debug(f"file_search {file_search}")
+                #fname = self._file_pattern_processed(ftimestamp_day+"*", "*", "slp",
+                #                           frequency=self.data_frequency)
+                #file_search = os.path.join(self.input_directory, fname)
+                #self.logger.debug(f"file_search {file_search}")
 
                 for regrid_resol in self.regrid_resolutions:
                     self.outdir = self.output_directory+'_'+regrid_resol
                     fname = self._file_pattern_processed(ftimestamp_day + "*", "*",
                                                 "slp", frequency=self.data_frequency)
                     file_search = os.path.join(self.outdir, fname)
+                    self.logger.debug(f"file_search {file_search}")
                     if glob.glob(file_search):
                         processed_files, variable_units = \
                         self._identify_processed_files(ftimestamp_day,
@@ -155,7 +156,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
                     else:
                         self.logger.debug(f"no files to process for timestamp "
-                                          f"{ftimestamp_day}")
+                                          f"{ftimestamp_day}" f"{file_search}")
         else:
             self.logger.error(f"no dot files to process ")
 
@@ -241,11 +242,11 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                                          do_lastcycle=do_lastcycle)
 
         # at this point, I can delete the input data for the T-2 timestep
-        if not do_lastcycle:
-            if self.delete_processed:
-                self._tidy_data_files(timestamp_tm2,
-                                  timestamp_previous,
-                                  self.variables_rename)
+        #if not do_lastcycle:
+        #    if self.delete_processed:
+        #        self._tidy_data_files(timestamp_tm2,
+        #                          timestamp_previous,
+        #                          self.variables_rename)
 
     def _run_editing_matching(
         self,
@@ -346,7 +347,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
             tracked_file_search = os.path.join(
                 outdir,
-                f"{self.um_runid}_{trackname}_????????_????????_{track_type}" +
+                f"{self.runid}_{trackname}_????????_????????_{track_type}" +
                 f"_adjust_b.txt"
             )
 
@@ -358,13 +359,13 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     tracked_file_final = os.path.join(
                         outdir,
                         self._archived_files_dir,
-                        f"{self.um_runid}_{trackname}_"
+                        f"{self.runid}_{trackname}_"
                         f"{date_start}_{timestamp_next}_"
                         f"{track_type}_endrun.txt"
                     )
                     tracked_file_last = os.path.join(
                         outdir,
-                        f"{self.um_runid}_{trackname}_{timestamp_previous}_"
+                        f"{self.runid}_{trackname}_{timestamp_previous}_"
                         f"{timestamp_current}_{track_type}_adjust_f.txt"
                     )
                     if os.path.exists(tracked_file_last):
@@ -372,7 +373,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 else:
                     tracked_file_final = os.path.join(
                         outdir,
-                        f"{self.um_runid}_{trackname}_{date_start}_{date_end}_"
+                        f"{self.runid}_{trackname}_{date_start}_{date_end}_"
                         f"{track_type}_ongoing.txt"
                     )
 
@@ -381,7 +382,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 # all adjust_b files from a given year together make that year of tracks
                 tracked_file_search_year = os.path.join(
                     outdir,
-                    f"{self.um_runid}_{trackname}_{do_year}????_????????_"
+                    f"{self.runid}_{trackname}_{do_year}????_????????_"
                     f"{track_type}_adjust_b.txt"
                 )
                 # files_year = sorted(glob.glob(tracked_file_search_year))
@@ -392,7 +393,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 # tracked_file_search_year = os.path.join(
                 #     outdir,
                 #     self._archived_files_dir,
-                #     f"{self.um_runid}_{trackname}_{do_year}????_????????_{track_type}"
+                #     f"{self.runid}_{trackname}_{do_year}????_????????_{track_type}"
                 #     f"_adjust_b.txt"
                 # )
                 #files = sorted(glob.glob(tracked_file_search_year))
@@ -400,7 +401,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 tracked_file_final = os.path.join(
                     outdir,
                     self._archived_files_dir,
-                    f"{self.um_runid}_{trackname}_year_{do_year}_{track_type}.txt"
+                    f"{self.runid}_{trackname}_year_{do_year}_{track_type}.txt"
                 )
                 self.logger.debug(f"This is a new year {do_year} {files}"
                                   f"{test_new_year}")
@@ -432,7 +433,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     date_start,
                     date_end,
                     self.variable_units,
-                    title_prefix=f"{self.um_runid} {self.resolution_code} "
+                    title_prefix=f"{self.runid} {self.resolution_code} "
                     f"{date_start}_{date_end}",
                     title_suffix=f"{track_type} tracks",
                     write_to_netcdf=True
@@ -471,12 +472,12 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 subdir = outdir.split('/')[-1]
                 candidate_files_search = os.path.join(
                     outdir,
-                    f"{self.um_runid}_candidate_{year}????_{track_type}.txt"
+                    f"{self.runid}_candidate_{year}????_{track_type}.txt"
                 )
                 candidate_file_year_tar = os.path.join(
                     outdir,
                     self._archived_files_dir,
-                    f"{self.um_runid}_candidate_{year}_{track_type}.txt.tar.gz"
+                    f"{self.runid}_candidate_{year}_{track_type}.txt.tar.gz"
                 )
 
                 files = sorted(glob.glob(candidate_files_search))
@@ -508,12 +509,12 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
                 tracked_file_adjust_b = os.path.join(
                     outdir,
-                    f"{self.um_runid}_{trackname}_{year}????_????????_"
+                    f"{self.runid}_{trackname}_{year}????_????????_"
                     f"{track_type}_adjust_b.txt"
                 )
                 tracked_file_adjust_f = os.path.join(
                     outdir,
-                    f"{self.um_runid}_{trackname}_{timestamp_previous}_{timestamp_day}_"
+                    f"{self.runid}_{trackname}_{timestamp_previous}_{timestamp_day}_"
                     f"{track_type}_adjust_f.txt"
                 )
                 files_year = sorted(glob.glob(tracked_file_adjust_b))
@@ -531,13 +532,13 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 tracked_files_adjust_b = os.path.join(
                     outdir,
                     self._archived_files_dir,
-                    f"{self.um_runid}_{trackname}_{year}????_????????_{track_type}"
+                    f"{self.runid}_{trackname}_{year}????_????????_{track_type}"
                     f"_adjust_?.txt"
                 )
                 tracked_files_adjust_b_tar = os.path.join(
                     outdir,
                     self._archived_files_dir,
-                    f"{self.um_runid}_{trackname}_{year}_{track_type}"
+                    f"{self.runid}_{trackname}_{year}_{track_type}"
                     f"_adjust_b.txt.tar.gz"
                 )
 
@@ -565,7 +566,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 tracked_file_final = os.path.join(
                     outdir,
                     self._archived_files_dir,
-                    f"{self.um_runid}_{trackname}_year_{year}_{track_type}"
+                    f"{self.runid}_{trackname}_year_{year}_{track_type}"
                 )
                 for f_ending in [".txt", ".nc"]:
                     if os.path.exists(tracked_file_final+f_ending):
@@ -575,7 +576,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 if self._is_new_year:
                     candidate_files_to_tidy = os.path.join(
                         outdir,
-                        f"{self.um_runid}_candidate_{year}????_????????_"
+                        f"{self.runid}_candidate_{year}????_????????_"
                         f"{track_type}.txt"
                     )
                     files = sorted(glob.glob(candidate_files_to_tidy))
@@ -586,7 +587,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
                     tracked_files_tidy = os.path.join(
                         outdir,
-                        f"{self.um_runid}_{trackname}_{year}????_????????_"
+                        f"{self.runid}_{trackname}_{year}????_????????_"
                         f"{track_type}.txt"
                     )
                     files = sorted(glob.glob(tracked_files_tidy))
@@ -601,7 +602,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 tracked_file_endrun = os.path.join(
                     outdir,
                     self._archived_files_dir,
-                    f"{self.um_runid}_{trackname}_{do_year}????_????????_{track_type}"
+                    f"{self.runid}_{trackname}_{do_year}????_????????_{track_type}"
                     f"_endrun*"
                 )
                 tracked_files = sorted(glob.glob(tracked_file_endrun))
@@ -613,10 +614,6 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         if f_ending in ["txt", ".nc"]:
                             with open(f + ".arch", "a"):
                                 os.utime(f + ".arch", None)
-
-        # run the archiving on any .arch files that exist - this is now
-        # in um_postprocess
-        #self._archive_to_mass(os.path.join(outdir, self._archived_files_dir))
 
     def _run_detection(self, timestamp):
         """
@@ -636,7 +633,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
             self.logger.debug(f"Running {track_type} detection")
             candidatefile = os.path.join(
                 self.outdir,
-                f"{self.um_runid}_candidate_{timestamp}_{track_type}.txt",
+                f"{self.runid}_candidate_{timestamp}_{track_type}.txt",
             )
             self.logger.debug(f"candidatefile {candidatefile}")
 
@@ -704,11 +701,11 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
             previous_year = int(timestamp[:4])
             candidate_file_current = os.path.join(
                 outdir,
-                f"{self.um_runid}_candidate_{timestamp}_{track_type}.txt",
+                f"{self.runid}_candidate_{timestamp}_{track_type}.txt",
             )
             candidate_file_previous = os.path.join(
                 outdir,
-                f"{self.um_runid}_candidate_{timestamp_previous}_{track_type}.txt",
+                f"{self.runid}_candidate_{timestamp_previous}_{track_type}.txt",
             )
             self.logger.debug(f"candidate files {candidate_file_previous},"
                               f"{candidate_file_current}")
@@ -721,7 +718,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
                 candidate_twotimes = os.path.join(
                     outdir,
-                    f"{self.um_runid}_candidate_{timestamp_previous}_{timestamp}"
+                    f"{self.runid}_candidate_{timestamp_previous}_{timestamp}"
                     f"_{track_type}.txt",
                 )
                 with open(candidate_twotimes, "w") as out_file:
@@ -906,7 +903,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 time = x.variables["time"]
                 calendar = time.calendar
                 calendar_units = self.calendar_units
-            nc_file_out = self.um_runid+'_'+tracked_file[:-4]+".nc"
+            nc_file_out = self.runid+'_'+tracked_file[:-4]+".nc"
             nc_file_out = os.path.join(os.path.dirname(tracked_file),
                                        os.path.basename(tracked_file)[:-4]+".nc")
             self.logger.debug(f"open netcdf file {nc_file_out}")
@@ -918,7 +915,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 calendar_units,
                 variable_units,
                 self.data_frequency,
-                self.um_suiteid,
+                self.suiteid,
                 self.resolution_code,
                 self.cmd_detect_type[track_type],
                 self.cmd_stitch_type[track_type],
@@ -975,7 +972,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
             tracked_file_current = os.path.join(
                 outdir,
-                f"{self.um_runid}_{trackname}_{timestamp_previous}_{timestamp_current}"
+                f"{self.runid}_{trackname}_{timestamp_previous}_{timestamp_current}"
                 f"_{track_type}.txt"
             )
             tracked_file_current_adjust = tracked_file_current[:-4]+'_adjust_f.txt'
@@ -983,7 +980,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
             # if the _adjust_f file is available, use this, else original track file
             tracked_file_previous_search = os.path.join(
                 outdir,
-                f"{self.um_runid}_{trackname}_????????_{timestamp_previous}"
+                f"{self.runid}_{trackname}_????????_{timestamp_previous}"
                 f"_{track_type}_adjust_f.txt"
             )
             if len(glob.glob(tracked_file_previous_search)) == 1:

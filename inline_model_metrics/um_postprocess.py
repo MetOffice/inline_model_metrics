@@ -71,11 +71,11 @@ class UMTempestPostprocess(AbstractApp):
 
         self.logger.debug(
             f"CYLC_TASK_CYCLE_TIME {self.cylc_task_cycle_time}, "
-            f"um_runid {self.um_runid}"
+            f"runid {self.runid}"
         )
 
         timestamp_day = self.cylc_task_cycle_time[:8]
-        timestamp_endday = self.next_cycle[:8]
+        timestamp_previous = self.previous_cycle[:8]
         timestamp_tm2 = self.tm2_cycle[:8]
 
         # this section of code processes data from the current timestep
@@ -90,16 +90,22 @@ class UMTempestPostprocess(AbstractApp):
                 # run the archiving on any .arch files that exist
                 self._archive_tracking_to_mass(os.path.join(self.outdir,
                                                         self._archived_files_dir))
+            if self.delete_processed:
+                if not self.is_last_cycle == "true":
+                    self._tidy_data_files(timestamp_tm2,
+                            timestamp_previous, self.variables_rename)
+
 
         # delete source data if required
-        if self.delete_source:
-            for var in self.variables_input:
-                fname = self._file_pattern(timestamp_tm2 + "*", "*", var,
-                                       um_stream="pt", frequency="*")
-                file_name = os.path.join(self.input_directory, fname)
-                self.logger.debug(f"deleting source file_name {file_name}")
-                if os.path.exists(file_name):
-                    os.remove(file_name)
+        if self.inline_tracking == "True":
+            if self.delete_source:
+                for var in self.variables_input:
+                    fname = self._file_pattern(timestamp_tm2 + "*", "*", var,
+                                           um_stream="pt", frequency="*")
+                    file_name = os.path.join(self.input_directory, fname)
+                    self.logger.debug(f"deleting source file_name {file_name}")
+                    if os.path.exists(file_name):
+                        os.remove(file_name)
 
     def _archive_tracking_to_mass(
         self,
@@ -122,7 +128,7 @@ class UMTempestPostprocess(AbstractApp):
                 if os.stat(fname).st_size == 0:
                     self.logger.debug(f"File is zero length, no archive {fname}")
                     return
-                cmd = "moo put -F "+fname+" "+moosedir.format(self.um_suiteid,
+                cmd = "moo put -F "+fname+" "+moosedir.format(self.suiteid,
                                                              mass_stream)
                 self.logger.debug(f"Archive cmd {cmd}")
 
@@ -225,7 +231,7 @@ class UMTempestPostprocess(AbstractApp):
             if "atmos" in self.input_file_pattern:
                 # file format from postproc
                 fname = self.input_file_pattern.format(
-                    runid=self.um_runid,
+                    runid=self.runid,
                     frequency=file_freq,
                     date_start=timestart,
                     date_end=timeend,
@@ -235,7 +241,7 @@ class UMTempestPostprocess(AbstractApp):
             else:
                 # file format from direct STASH to netcdf conversion
                 fname = self.input_file_pattern.format(
-                    runid=self.um_runid,
+                    runid=self.runid,
                     stream=um_stream,
                     date_start=timestart,
                     variable=varname
@@ -253,12 +259,12 @@ class UMTempestPostprocess(AbstractApp):
             "common", "output_directory"
         )
         self.orography_dir = self.app_config.get_property("common", "orography_dir")
-        #self.delete_processed = self.app_config.get_bool_property(
-        #    "common", "delete_processed"
-        #)
-        #self.delete_source = self.app_config.get_bool_property(
-        #    "common", "delete_source"
-        #)
+        self.delete_processed = self.app_config.get_bool_property(
+            "common", "delete_processed"
+        )
+        self.delete_source = self.app_config.get_bool_property(
+            "common", "delete_source"
+        )
         self.variables_input = eval(self.app_config.get_property("common",
                                                                  "variables_input"))
         self.variables_rename = eval(self.app_config.get_property("common",
@@ -286,14 +292,17 @@ class UMTempestPostprocess(AbstractApp):
         documentation.
         """
         try:
-            self.um_runid = os.environ["RUNID_OVERRIDE"]
+            self.runid = os.environ["RUNID_OVERRIDE"]
         except:
-            self.um_runid = os.environ["RUNID"]
+            self.runid = os.environ["RUNID"]
         try:
-            self.um_suiteid = os.environ["SUITEID_OVERRIDE"]
+            self.suiteid = os.environ["SUITEID_OVERRIDE"]
         except:
-            self.um_suiteid = os.environ["CYLC_SUITE_NAME"]
+            self.suiteid = os.environ["CYLC_SUITE_NAME"]
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
         self.next_cycle = os.environ["NEXT_CYCLE"]
+        self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
         self.tm2_cycle = os.environ["TM2_CYCLE"]
         self.ncodir = os.environ["NCODIR"]
+        self.is_last_cycle = os.environ["IS_LAST_CYCLE"]
+        self.inline_tracking = os.environ["INLINE_TRACKING"]

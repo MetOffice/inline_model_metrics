@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import sys
 
-from afterburner.apps import AbstractApp
+#from afterburner.apps import AbstractApp
 
 from .tempest_common import (TempestExtremesAbstract)
 
@@ -18,7 +18,7 @@ class TempestError(Exception):
     pass
 
 
-class UMTempestPostprocess(AbstractApp):
+class UMTempestPostprocess(TempestExtremesAbstract):
     """
     Postprocess Unified Model (Met Office HadGEM model) data for the
     TempestExtremes trackers.
@@ -83,9 +83,6 @@ class UMTempestPostprocess(AbstractApp):
 
         for regrid_resol in self.regrid_resolutions:
             self.outdir = self.output_directory + '_' + regrid_resol
-            # process the AR files before archiving
-            self._process_ar_for_archive(os.path.join(self.outdir,
-                                                      self._archived_files_dir))
             if self.um_archive_to_mass:
                 # run the archiving on any .arch files that exist
                 self._archive_tracking_to_mass(os.path.join(self.outdir,
@@ -148,63 +145,6 @@ class UMTempestPostprocess(AbstractApp):
                     os.remove(fname)
                     os.remove(fname_arch)
                 self.logger.debug(sts.stdout)
-
-    def _process_ar_for_archive(
-        self,
-        archive_directory,
-        nc_compression="1",
-        netcdf_format="4"
-    ):
-        """
-        Process any AR files before archiving
-        :param str archive_directory: The directory to look for any .arch files
-        :param str nc_compression: Compression level for netcdf files
-        :param netcdf_format: Format of netcdf files (netcdf4 by default)
-        """
-
-        archive_files = glob.glob(os.path.join(archive_directory, "*ARmask*.arch"))
-        if len(archive_files) > 0:
-            for fname_arch in archive_files:
-                fname = fname_arch[:-5]
-                if fname[-2:] == "nc":
-                    # convert to netcdf4 and compress
-                    cmd = "nccopy -" + netcdf_format + " -d " + nc_compression +\
-                          " " + fname + " " + fname + ".nc4"
-                    sts = subprocess.run(
-                        cmd,
-                        shell=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        universal_newlines=True
-                    )
-                    if sts.stderr:
-                        msg = (
-                            f"Error found in cmd {cmd} {sts.stderr} \n"
-                        )
-                        raise RuntimeError(msg)
-                    else:
-                        os.remove(fname)
-                        os.rename(fname+".nc4", fname)
-
-                if fname[-2:] == "nc":
-                    # convert time coordinate to unlimited
-                    cmd = os.path.join(self.ncodir, "ncks") + " --mk_rec_dmn time " + \
-                          fname + " " + fname[:-3] + "_unlimited.nc"
-                    sts = subprocess.run(
-                        cmd,
-                        shell=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        universal_newlines=True
-                    )
-                    if sts.stderr:
-                        msg = (
-                            f"Error found in cmd {cmd} {sts.stderr} \n"
-                        )
-                        raise RuntimeError(msg)
-                    else:
-                        os.remove(fname)
-                        os.rename(fname[:-3] + "_unlimited.nc", fname)
 
     def _file_pattern(self, timestart, timeend, varname, um_stream="pt",
                       frequency="6h"):

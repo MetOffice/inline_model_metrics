@@ -4,6 +4,7 @@ import glob
 import os
 import subprocess
 import sys
+import shutil
 
 from .tempest_common import (TempestExtremesAbstract, _is_date_after,
                              _is_date_after_or_equal)
@@ -140,8 +141,8 @@ class TempestExtremesAR(TempestExtremesAbstract):
                         # run TempestExtremes detect blobs
                         candidate_file = self._run_detect_blobs(ftimestamp_day)
 
-                        # archive this data
-                        self._archive_ar_data(self.outdir, candidate_file)
+                        # process the AR netcdf files
+                        self._process_ar_for_archive(candidate_file)
 
                         # if this timestep has worked OK, then need to remove
                         # the dot_file
@@ -149,15 +150,26 @@ class TempestExtremesAR(TempestExtremesAbstract):
                                                     dot_file=dot_file)
 
                         # at this point, I can delete the processed input data
-                        if self.delete_processed:
-                            self._tidy_data_files(timestamp_previous, timestamp_day,
-                                                  self.variables_rename)
+                        #if self.delete_processed:
+                        #    self._tidy_data_files(timestamp_previous, timestamp_day,
+                        #                          self.variables_rename)
 
                     else:
                         self.logger.debug(f"no files to process for timestamp "
                                           f"{ftimestamp_day}")
         else:
             self.logger.error(f"no dot files to process ")
+
+        # Test if new year, if so then concatenate all the previous year data into 1 file
+        is_new_year = (timestamp_day[0:4] != timestamp_previous[0:4]) and \
+                _is_date_after(timestamp_previous, self.startdate)
+
+        if is_new_year:
+            self._produce_annual_ar_file(self.outdir, timestamp_previous[0:4])
+
+        if self.is_last_cycle == "true" or is_new_year:
+            # archive any remaining AR data
+            self._archive_ar_data(self.outdir, is_new_year, timestamp_previous[0:4])
 
     def _run_detect_blobs(self, timestamp):
         """
@@ -225,23 +237,117 @@ class TempestExtremesAR(TempestExtremesAbstract):
 
         return candidatefile
 
-    def _archive_ar_data(self, outdir, ar_file):
+    def _process_ar_for_archive(
+        self,
+        fname,
+        nc_compression="1",
+        netcdf_format="4"
+    ):
+        """
+        Process any AR files before archiving
+        :param str archive_directory: The directory to look for any .arch files
+        :param str nc_compression: Compression level for netcdf files
+        :param netcdf_format: Format of netcdf files (netcdf4 by default)
+        """
+        if os.path.exists(fname):
+            if fname[-2:] == "nc":
+                # convert to netcdf4 and compress
+                cmd = "nccopy -" + netcdf_format + " -d " + nc_compression +\
+                      " " + fname + " " + fname + ".nc4"
+                sts = subprocess.run(
+                    cmd,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    universal_newlines=True
+                )
+                if sts.stderr:
+                    msg = (
+                        f"Error found in cmd {cmd} {sts.stderr} \n"
+                    )
+                    raise RuntimeError(msg)
+                else:
+                    os.remove(fname)
+                    os.rename(fname+".nc4", fname)
+
+                # convert time coordinate to unlimited
+                cmd = os.path.join(self.ncodir, "ncks") + " --mk_rec_dmn time " + \
+                      fname + " " + fname[:-3] + "_unlimited.nc"
+                sts = subprocess.run(
+                    cmd,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    universal_newlines=True
+                )
+                if sts.stderr:
+                    msg = (
+                        f"Error found in cmd {cmd} {sts.stderr} \n"
+                    )
+                    raise RuntimeError(msg)
+                else:
+                    os.remove(fname)
+                    os.rename(fname[:-3] + "_unlimited.nc", fname)
+
+    def _produce_annual_ar_file(
+        self,
+        outdir,
+        year,
+    ):
+        """
+        Concatenate one year of AR data
+        :param str outdir: output directory which contains AR files
+        :param str year: the year of data to concatenate
+        """
+        files_to_join = sorted(glob.glob(os.path.join(outdir, "*ARmask_"+year+"????_*.nc")))
+        if len(files_to_join) > 0:
+            file_year = files_to_join[0].replace(year+"0101", "year_"+year)
+            cmd = os.path.join(self.ncodir, "ncrcat") + " " + " ".join(files_to_join) + \
+                    " " + file_year
+            self.logger.info(f"ncrcat cmd {cmd}")
+
+            sts = subprocess.run(
+                cmd,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True
+            )
+            if sts.stderr:
+                msg = (
+                    f"Error found in cmd {cmd} {sts.stderr} \n"
+                )
+                raise RuntimeError(msg)
+            else:
+                for f in files_to_join:
+                    os.remove(f)
+
+    def _archive_ar_data(self, outdir, is_new_year, year):
         """
         Archive the required AR data
-        :param str outdir: output directory
-        :param str ar_file: file to archive
+        :param str outdir: output directory from which to archive AR files
         """
+        if self.is_last_cycle:
+            files_to_archive = glob.glob(os.path.join(outdir, "*ARmask*.nc"))
+        elif is_new_year:
+            files_to_archive = glob.glob(os.path.join(outdir, "*ARmask*year_"+year+"*.nc"))
+        self.logger.info(f"files_to_archive {files_to_archive}")
+
         if not os.path.exists(os.path.join(outdir, self._archived_files_dir)):
             os.makedirs(os.path.join(outdir, self._archived_files_dir))
 
-        # move ar_file to archive directory
-        if os.path.exists(ar_file):
-            ar_archive_file = os.path.join(outdir, self._archived_files_dir,
-                                            os.path.basename(ar_file))
-            os.rename(ar_file, ar_archive_file)
+        if len(files_to_archive) > 0:
+            for ar_file in files_to_archive:
+                # move ar_file to archive directory
+                ar_archive_file = os.path.join(outdir, self._archived_files_dir,
+                                                os.path.basename(ar_file))
+                if self.is_last_cycle:
+                    shutil.copy(ar_file, ar_archive_file)
+                else:
+                    os.replace(ar_file, ar_archive_file)
 
-            with open(ar_archive_file + ".arch", "a"):
-                os.utime(ar_archive_file + ".arch", None)
+                with open(ar_archive_file + ".arch", "a"):
+                    os.utime(ar_archive_file + ".arch", None)
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""

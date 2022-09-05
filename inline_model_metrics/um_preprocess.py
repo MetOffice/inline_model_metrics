@@ -7,7 +7,6 @@ import shutil
 import subprocess
 import sys
 
-
 import numpy as np
 import iris
 # windspharm needs installing: see https://ajdawson.github.io/windspharm/latest/
@@ -89,7 +88,7 @@ class UMTempestPreprocess(AbstractApp):
         current_time = timestamp_day
         # find the relevant input data using the given file pattern
         fname = self._file_pattern(current_time + "*", "*", slp_input_var,
-                                   um_stream="pt", frequency="*")
+                                   frequency="*", stream=self.um_stream)
         file_search = os.path.join(self.input_directory, fname)
         self.logger.debug(f"file_search {file_search}")
 
@@ -103,8 +102,8 @@ class UMTempestPreprocess(AbstractApp):
                                               slp_input_var, grid_resol=regrid_resol)
                 #self._produce_derived_diagnostics(source_files, processed_files)
 
-    def _file_pattern(self, timestart, timeend, varname, um_stream='pt',
-                      frequency='6h'):
+    def _file_pattern(self, timestart, timeend, varname,
+                      frequency="6h", stream="pt"):
         """
         Derive the input nc filenames from the file pattern, assuming a
         um model filenaming pattern as here, or could be other patterns
@@ -122,7 +121,7 @@ class UMTempestPreprocess(AbstractApp):
         if self.frequency is None:
             file_freq = frequency
         else:
-            file_freq = str(self.frequency)+'h'
+            file_freq = str(self.frequency)+"h"
 
         if self.input_file_pattern != '':
             # file format based on input pattern
@@ -131,23 +130,21 @@ class UMTempestPreprocess(AbstractApp):
                 frequency=file_freq,
                 date_start=timestart,
                 date_end=timeend,
-                stream=um_stream,
-                variable=varname
+                variable=varname,
+                stream=stream
             )
-        self.logger.info(f"fname from _file_pattern {fname} {um_stream} {timestart}" +\
+        self.logger.info(f"fname from _file_pattern {fname} {self.um_stream} {timestart}" +\
                         f" {timeend} {varname}")
         return fname.strip('"')
 
     def _file_pattern_processed(self, timestart, timeend, varname,
-                      frequency='6h'):
+                      frequency="6h"):
         """
         For processed files, we know what the filenames look like, so
         search specifically
 
         :param str timestart: The timestep of the start of the data period to process
         :param str timeend: The timestep of the end of the data period to process
-        :param str um_stream: The name of the um output stream (output file
-        :                     identification)
         :param str frequency: The frequency of the input data (in hours, needs to
         :                     include "h"), used to determine file naming
         :returns: a filename given the inputs to the pattern
@@ -156,7 +153,7 @@ class UMTempestPreprocess(AbstractApp):
         if self.frequency is None:
             file_freq = frequency
         else:
-            file_freq = str(self.frequency)+'h'
+            file_freq = str(self.frequency)+"h"
 
         fname = self.file_pattern_processed.format(
             runid=self.runid,
@@ -171,7 +168,7 @@ class UMTempestPreprocess(AbstractApp):
         return fname.strip('"')
 
     def _generate_data_files(self, timestamp, timestamp_end,
-                             slp_var, grid_resol='native'):
+                             slp_var, grid_resol="native"):
         """
         Identify and then fix the grids and var_names in the input files.
         The time_range and frequency attributes are set when this method runs.
@@ -185,8 +182,8 @@ class UMTempestPreprocess(AbstractApp):
         """
         timestamp_day = timestamp
         self.logger.debug(f"timestamp_day in generate_data_files {timestamp_day}")
-        fname = self._file_pattern(timestamp_day+"*", "*", slp_var, um_stream="pt",
-                                   frequency="*")
+        fname = self._file_pattern(timestamp_day+"*", "*", slp_var,
+                                   frequency="*", stream=self.um_stream)
         file_search = os.path.join(
             self.input_directory, fname
         )
@@ -290,7 +287,8 @@ class UMTempestPreprocess(AbstractApp):
             self.logger.error(msg)
             raise RuntimeError(msg)
 
-    def _process_input_files(self, time_start, time_end, slp_var, grid_resol="native"):
+    def _process_input_files(self, time_start, time_end, slp_var,
+                             grid_resol="native"):
         """
         Identify and then fix the grids and var_names in the input files.
         The variable names need to have a new var_name, either because the default
@@ -320,7 +318,7 @@ class UMTempestPreprocess(AbstractApp):
         reference_name = self._file_pattern(self.time_range.split("-")[0],
                                             self.time_range.split("-")[1],
                                             variables_required[slp_var]["fname"],
-                                            um_stream="pt")
+                                            stream=self.um_stream)
         reference_path = os.path.join(self.input_directory, reference_name)
         reference = iris.load_cube(reference_path)
         variable_units[slp_var] = reference.units
@@ -352,7 +350,7 @@ class UMTempestPreprocess(AbstractApp):
             filename = self._file_pattern(self.time_range.split("-")[0],
                                           self.time_range.split("-")[1],
                                           variables_required[var]["fname"],
-                                          um_stream="pt")
+                                          stream=self.um_stream)
 
             input_path = os.path.join(self.input_directory, filename)
             if not os.path.exists(input_path):
@@ -458,12 +456,6 @@ class UMTempestPreprocess(AbstractApp):
             "common", "output_directory"
         )
         self.orography_dir = self.app_config.get_property("common", "orography_dir")
-        #self.delete_processed = self.app_config.get_bool_property(
-        #    "common", "delete_processed"
-        #)
-        #self.delete_source = self.app_config.get_bool_property(
-        #    "common", "delete_source"
-        #)
         self.variables_input = eval(self.app_config.get_property("common",
                                                                  "variables_input"))
         self.variables_rename = eval(self.app_config.get_property("common",
@@ -478,6 +470,11 @@ class UMTempestPreprocess(AbstractApp):
         ))
         self.data_frequency = self.app_config.get_property("common",
                                                             "data_frequency")
+        try:
+            self.um_stream = eval(self.app_config.get_property("common",
+                                                            "um_stream"))
+        except:
+            self.um_stream = "pt"
 
     def _get_environment_variables(self):
         """

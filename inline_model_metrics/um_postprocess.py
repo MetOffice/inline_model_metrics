@@ -17,7 +17,6 @@ class TempestError(Exception):
     """
     pass
 
-
 class UMTempestPostprocess(TempestExtremesAbstract):
     """
     Postprocess Unified Model (Met Office HadGEM model) data for the
@@ -78,6 +77,11 @@ class UMTempestPostprocess(TempestExtremesAbstract):
         timestamp_previous = self.previous_cycle[:8]
         timestamp_tm2 = self.tm2_cycle[:8]
 
+        # Check whether the cylc date is after the most recent post-processed file
+        condition = self._get_tracking_date(timestamp_day)
+        if condition == "AlreadyComplete":
+            return
+
         # this section of code processes data from the current timestep
         current_time = timestamp_day
 
@@ -92,17 +96,17 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                     self._tidy_data_files(timestamp_tm2,
                             timestamp_previous, self.variables_rename)
 
-
         # delete source data if required
-        if self.inline_tracking == "True":
-            if self.delete_source:
-                for var in self.variables_input:
-                    fname = self._file_pattern(timestamp_tm2 + "*", "*", var,
-                                           um_stream="pt", frequency="*")
-                    file_name = os.path.join(self.input_directory, fname)
-                    self.logger.debug(f"deleting source file_name {file_name}")
-                    if os.path.exists(file_name):
-                        os.remove(file_name)
+        if self.delete_source:
+            for var in self.variables_input:
+                fname = self._file_pattern(timestamp_tm2 + "*", "*", var,
+                                       stream=self.um_stream, frequency="*")
+                file_name = os.path.join(self.input_directory, fname)
+                files_exist = glob.glob(file_name)
+                if len(files_exist) > 0:
+                    for f in files_exist:
+                        self.logger.info(f"deleting source file_name {f}")
+                        os.remove(f)
 
     def _archive_tracking_to_mass(
         self,
@@ -113,10 +117,16 @@ class UMTempestPostprocess(TempestExtremesAbstract):
         :param str archive_directory: The directory to look for any .arch files
         """
 
-        moosedir = "moose:/crum/{}/{}/"
+        #moosedir = "moose:/crum/{}/{}/"
         archive_files = glob.glob(os.path.join(archive_directory, "*.arch"))
         if len(archive_files) > 0:
+            if self.ensemble == "":
+                moo_path = self.moo_dir.format(self.suiteid)
+            else:
+                moo_path = self.moo_dir.format(self.suiteid, self.ensemble)
+
             for fname_arch in archive_files:
+                archive_error = False
                 fname = fname_arch[:-5]
                 if fname[-2:] == "nc":
                     mass_stream = "any.nc.file"
@@ -125,10 +135,9 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                 if os.stat(fname).st_size == 0:
                     self.logger.debug(f"File is zero length, no archive {fname}")
                     return
-                cmd = "moo put -F "+fname+" "+moosedir.format(self.suiteid,
-                                                             mass_stream)
-                self.logger.debug(f"Archive cmd {cmd}")
 
+                cmd = "moo put -F " + fname + " " + moo_path + "/" + mass_stream
+                self.logger.debug(f"Archive cmd {cmd}")
                 sts = subprocess.run(
                     cmd,
                     shell=True,
@@ -140,55 +149,24 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                     msg = (
                         f"Error found in cmd {cmd} {sts.stderr} \n"
                     )
-                    raise RuntimeError(msg)
+                    archive_error = True
                 else:
                     os.remove(fname)
                     os.remove(fname_arch)
                 self.logger.debug(sts.stdout)
 
-    def _file_pattern(self, timestart, timeend, varname, um_stream="pt",
-                      frequency="6h"):
-        """
-        Derive the input nc filenames from the file pattern, assuming a
-        um model filenaming pattern as here, or could be other patterns
-        for other models/platforms (which would need to be added)
-
-        :param str timestart: The timestep of the start of the data period to process
-        :param str timeend: The timestep of the end of the data period to process
-        :param str um_stream: The name of the um output stream (output file
-        :                     identification)
-        :param str frequency: The frequency of the input data (in hours, needs to
-        :                     include "h"), used to determine file naming
-        :returns: a filename given the inputs to the pattern
-        :rtype: str
-        """
-        if self.frequency is None:
-            file_freq = frequency
-        else:
-            file_freq = str(self.frequency)+"h"
-
-        if self.input_file_pattern != '':
-            if "atmos" in self.input_file_pattern:
-                # file format from postproc
-                fname = self.input_file_pattern.format(
-                    runid=self.runid,
-                    frequency=file_freq,
-                    date_start=timestart,
-                    date_end=timeend,
-                    stream=um_stream,
-                    variable=varname
-                )
-            else:
-                # file format from direct STASH to netcdf conversion
-                fname = self.input_file_pattern.format(
-                    runid=self.runid,
-                    stream=um_stream,
-                    date_start=timestart,
-                    variable=varname
-                )
-        self.logger.info(f"fname from pattern {fname} {um_stream} {timestart} "
-                        f"{timeend} {varname}")
-        return fname.strip('"')
+                if archive_error:
+                    if os.path.isdir(self.backup_data_directory):
+                        backup_data_path = os.path.join(self.backup_data_directory,
+                                                    self.suiteid)
+                        if not os.path.exists(backup_data_path):
+                                os.makedirs(backup_data_path)
+                        cmd = "cp " + fname + " " + backup_data_path
+                        self.logger.debug(f"Archive cmd {cmd}")
+                    else:
+                        self.logger.debug(f"Archive directory does not exist " + \
+                                          f"{self.backup_data_directory}")
+                    raise RuntimeError(msg)
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""
@@ -209,9 +187,6 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                                                                  "variables_input"))
         self.variables_rename = eval(self.app_config.get_property("common",
                                                                  "variables_rename"))
-        self.delete_source = self.app_config.get_bool_property(
-            "common", "delete_source"
-        )
         self.input_file_pattern = self.app_config.get_property("common",
                                                             "input_file_pattern")
         self.file_pattern_processed = self.app_config.get_property("common",
@@ -224,25 +199,44 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                                                             "data_frequency")
         self.um_archive_to_mass = self.app_config.get_bool_property("common",
                                                             "um_archive_to_mass")
+        try:
+            self.um_stream = eval(self.app_config.get_property("common",
+                                                            "um_stream"))
+        except:
+            self.um_stream = "pt"
 
-    def _get_environment_variables(self):
-        """
-        Get the required environment variables from the suite. A list and
-        explanation of the required environment variables is included in the
-        documentation.
-        """
         try:
-            self.runid = os.environ["RUNID_OVERRIDE"]
+            self.backup_data_directory = self.app_config.get_property("common",
+                                                            "backup_directory")
         except:
-            self.runid = os.environ["RUNID"]
+            self.backup_data_directory = ""
+
         try:
-            self.suiteid = os.environ["SUITEID_OVERRIDE"]
+            self.ensemble = eval(self.app_config.get_property("common",
+                                                            "ensemble"))
         except:
-            self.suiteid = os.environ["CYLC_SUITE_NAME"]
-        self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
-        self.next_cycle = os.environ["NEXT_CYCLE"]
-        self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
-        self.tm2_cycle = os.environ["TM2_CYCLE"]
-        self.ncodir = os.environ["NCODIR"]
-        self.is_last_cycle = os.environ["IS_LAST_CYCLE"]
-        self.inline_tracking = os.environ["INLINE_TRACKING"]
+            self.ensemble = ""
+
+        if self.ensemble == "":
+            self.moo_dir = 'moose:/crum/{}'
+        else:
+            self.moo_dir = 'moose:/ens/{}/{}'
+
+    # def _get_environment_variables(self):
+    #     """
+    #     Get the required environment variables from the suite. A list and
+    #     explanation of the required environment variables is included in the
+    #     documentation.
+    #     """
+    #     try:
+    #         self.suiteid = os.environ["SUITEID_OVERRIDE"]
+    #     except:
+    #         self.suiteid = os.environ["CYLC_SUITE_NAME"]
+    #     self.runid = self.suiteid.split('-')[1]
+    #     self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
+    #     self.next_cycle = os.environ["NEXT_CYCLE"]
+    #     self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
+    #     self.tm2_cycle = os.environ["TM2_CYCLE"]
+    #     self.ncodir = os.environ["NCODIR"]
+    #     self.is_last_cycle = os.environ["IS_LAST_CYCLE"]
+    #     self.inline_tracking = os.environ["INLINE_TRACKING"]

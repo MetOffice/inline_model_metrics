@@ -71,7 +71,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
         # initialise variables that might not get set if no detection step
         for regrid_resol in self.regrid_resolutions:
-            self.processed_files_slp[regrid_resol] = ""
+            self.processed_files_psl[regrid_resol] = ""
         for track_type in self.track_types:
             self.cmd_detect_type[track_type] = ""
             self.cmd_stitch_type[track_type] = ""
@@ -97,6 +97,11 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         self.logger.debug(f"is_last_cycle {self.is_last_cycle}")
         self.logger.debug(f"inline_tracking {self.inline_tracking}")
 
+        # Check whether the cylc date is after the most recent post-processed file
+        condition = self._get_tracking_date(timestamp_current)
+        if condition == "AlreadyComplete":
+            return
+
         # First write a dot_file to document which timestamps are yet to be tracked
         dot_file = "do_tracking"
         candidate_files = []
@@ -113,7 +118,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         if dot_tracking_files:
             for do_track_file in dot_tracking_files:
                 ftimestamp_day = do_track_file.split('.')[1].split("-")[0]
-                ftimestamp_endday = do_track_file.split('.')[1].split('-')[1]
+                ftimestamp_endday = do_track_file.split('.')[1].split("-")[1]
                 self.logger.debug(f"running dot file {do_track_file} {ftimestamp_day}")
                 if self.inline_tracking == "True":
                     self.logger.debug(f"running inline {self.inline_tracking}")
@@ -128,7 +133,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         continue
 
                 # find the relevant input data using the given file pattern
-                #fname = self._file_pattern_processed(ftimestamp_day+"*", "*", "slp",
+                #fname = self._file_pattern_processed(ftimestamp_day+"*", "*", "psl",
                 #                           frequency=self.data_frequency)
                 #file_search = os.path.join(self.input_directory, fname)
                 #self.logger.debug(f"file_search {file_search}")
@@ -136,7 +141,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 for regrid_resol in self.regrid_resolutions:
                     self.outdir = self.output_directory+'_'+regrid_resol
                     fname = self._file_pattern_processed(ftimestamp_day + "*", "*",
-                                                "slp", frequency=self.data_frequency)
+                                                "psl", frequency=self.data_frequency)
                     file_search = os.path.join(self.outdir, fname)
                     self.logger.debug(f"file_search {file_search}")
                     if glob.glob(file_search):
@@ -144,8 +149,8 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         self._identify_processed_files(ftimestamp_day,
                                             ftimestamp_endday, grid_resol=regrid_resol)
                         self.processed_files[ftimestamp_day] = processed_files
-                        self.processed_files_slp[regrid_resol] = \
-                            self.processed_files[ftimestamp_day]["slp"]
+                        self.processed_files_psl[regrid_resol] = \
+                            self.processed_files[ftimestamp_day]["psl"]
                         self.variable_units = variable_units
 
                         # run TempestExtremes detection
@@ -173,6 +178,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
             timestep_t = timestamp_next
             timestep_tp1 = timestamp_tp2
 
+        self._current_year_value = timestep_t[0:4]
         # Run the tracking and node editing for T-2, T-1 files
         self._run_tracking_and_editing(timestep_tm2, timestep_tm1,
                                        timestep_t, do_lastcycle=False)
@@ -207,15 +213,15 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         :                              to process
         :param bool do_lastcycle: Is this the last cycle in the model run
         """
-        fname_slp = self._file_pattern_processed(timestamp_tm2 + "*",
-                                                 timestamp_previous + "*", "slp",
+        fname_psl = self._file_pattern_processed(timestamp_tm2 + "*",
+                                                 timestamp_previous + "*", "psl",
                                                  frequency=self.data_frequency)
-        file_search = os.path.join(self.outdir, fname_slp)
-        files_slp_prev = sorted(glob.glob(file_search))
-        self.logger.debug(f"file_search for tm2 {file_search} {files_slp_prev} "
-                          f"{len(files_slp_prev)}")
+        file_search = os.path.join(self.outdir, fname_psl)
+        files_psl_prev = sorted(glob.glob(file_search))
+        self.logger.debug(f"file_search for tm2 {file_search} {files_psl_prev} "
+                          f"{len(files_psl_prev)}")
 
-        if len(files_slp_prev) == 1:
+        if len(files_psl_prev) == 1:
             timestamp_tm1 = timestamp_previous
 
             # run the stitching and edit/profile on native grid data
@@ -232,7 +238,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     timestamp_tm1,
                     timestamp_tm2,
                     tracked_files,
-                    files_slp_prev[0],
+                    files_psl_prev[0],
                     grid_resol=regrid_resol,
                     do_lastcycle=do_lastcycle
                 )
@@ -255,7 +261,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         timestamp_tm1,
         timestamp_tm2,
         tracked_files,
-        processed_files_slp,
+        processed_files_psl,
         grid_resol="native",
         do_lastcycle=False
     ):
@@ -266,7 +272,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         :param str timestamp_day: The current timestep of data/tracking to process
         :param str timestamp_previous: The previous timestep of data/tracking
         :                              to process
-        :param str processed_files_slp: The path name to the slp nc file
+        :param str processed_files_psl: The path name to the psl nc file
         :param str grid_resol: Either 'native', or the grid resolution for
         :                      regridded output (e.g. N216)
         :param bool do_lastcycle: Is this the last cycle in the model run
@@ -284,7 +290,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 outdir,
                 timestamp_tm1,
                 timestamp_tm2,
-                processed_files_slp
+                processed_files_psl
                 )
 
             self._collect_and_write_tracks(
@@ -292,7 +298,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 timestamp_t,
                 timestamp_tm1,
                 timestamp_tm2,
-                processed_files_slp
+                processed_files_psl
             )
 
         self._collect_and_write_tracks(
@@ -300,7 +306,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
             timestamp_t,
             timestamp_tm1,
             timestamp_tm2,
-            processed_files_slp,
+            processed_files_psl,
             test_new_year=True,
             do_lastcycle=False
         )
@@ -311,7 +317,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
             timestamp_t,
             timestamp_tm1,
             timestamp_tm2,
-            processed_files_slp,
+            processed_files_psl,
             do_lastcycle=do_lastcycle
         )
 

@@ -12,7 +12,9 @@ import iris
 # windspharm needs installing: see https://ajdawson.github.io/windspharm/latest/
 #from windspharm.iris import VectorWind
 
-from afterburner.apps import AbstractApp
+from .tempest_common import (TempestExtremesAbstract)
+
+#from afterburner.apps import AbstractApp
 
 class TempestError(Exception):
     """
@@ -21,7 +23,7 @@ class TempestError(Exception):
     pass
 
 
-class UMTempestPreprocess(AbstractApp):
+class UMTempestPreprocess(TempestExtremesAbstract):
     """
     Preprocess Unified Model (Met Office HadGEM model) data for the
     TempestExtremes trackers.
@@ -70,11 +72,11 @@ class UMTempestPreprocess(AbstractApp):
         # initialise variables that might not get set if no detection step
         self.outdir = self.output_directory + "_" + "native"
 
-        # find out what the slp variable is for the input data
-        if self.variables_rename[0] == "slp":
-            slp_input_var = self.variables_input[0]
+        # find out what the psl variable is for the input data
+        if self.variables_rename[0] == "psl":
+            psl_input_var = self.variables_input[0]
         else:
-            slp_input_var = "slp"
+            psl_input_var = "psl"
 
         self.logger.debug(
             f"CYLC_TASK_CYCLE_TIME {self.cylc_task_cycle_time}, "
@@ -84,10 +86,14 @@ class UMTempestPreprocess(AbstractApp):
         timestamp_day = self.cylc_task_cycle_time[:8]
         timestamp_endday = self.next_cycle[:8]
 
+        condition = self._set_tracking_date(timestamp_day)
+        if condition == "AlreadyComplete":
+            return
+
         # this section of code processes data from the current timestep
         current_time = timestamp_day
         # find the relevant input data using the given file pattern
-        fname = self._file_pattern(current_time + "*", "*", slp_input_var,
+        fname = self._file_pattern(current_time + "*", "*", psl_input_var,
                                    frequency="*", stream=self.um_stream)
         file_search = os.path.join(self.input_directory, fname)
         self.logger.debug(f"file_search {file_search}")
@@ -99,76 +105,76 @@ class UMTempestPreprocess(AbstractApp):
                 self.outdir = self.output_directory + '_' + regrid_resol
                 source_files, processed_files, variable_units = \
                     self._generate_data_files(timestamp_day, timestamp_endday,
-                                              slp_input_var, grid_resol=regrid_resol)
+                                              psl_input_var, grid_resol=regrid_resol)
                 #self._produce_derived_diagnostics(source_files, processed_files)
 
-    def _file_pattern(self, timestart, timeend, varname,
-                      frequency="6h", stream="pt"):
-        """
-        Derive the input nc filenames from the file pattern, assuming a
-        um model filenaming pattern as here, or could be other patterns
-        for other models/platforms (which would need to be added)
-
-        :param str timestart: The timestep of the start of the data period to process
-        :param str timeend: The timestep of the end of the data period to process
-        :param str um_stream: The name of the um output stream (output file
-        :                     identification)
-        :param str frequency: The frequency of the input data (in hours, needs to
-        :                     include "h"), used to determine file naming
-        :returns: a filename given the inputs to the pattern
-        :rtype: str
-        """
-        if self.frequency is None:
-            file_freq = frequency
-        else:
-            file_freq = str(self.frequency)+"h"
-
-        if self.input_file_pattern != '':
-            # file format based on input pattern
-            fname = self.input_file_pattern.format(
-                runid=self.runid,
-                frequency=file_freq,
-                date_start=timestart,
-                date_end=timeend,
-                variable=varname,
-                stream=stream
-            )
-        self.logger.info(f"fname from _file_pattern {fname} {self.um_stream} {timestart}" +\
-                        f" {timeend} {varname}")
-        return fname.strip('"')
-
-    def _file_pattern_processed(self, timestart, timeend, varname,
-                      frequency="6h"):
-        """
-        For processed files, we know what the filenames look like, so
-        search specifically
-
-        :param str timestart: The timestep of the start of the data period to process
-        :param str timeend: The timestep of the end of the data period to process
-        :param str frequency: The frequency of the input data (in hours, needs to
-        :                     include "h"), used to determine file naming
-        :returns: a filename given the inputs to the pattern
-        :rtype: str
-        """
-        if self.frequency is None:
-            file_freq = frequency
-        else:
-            file_freq = str(self.frequency)+"h"
-
-        fname = self.file_pattern_processed.format(
-            runid=self.runid,
-            frequency=file_freq,
-            date_start=timestart,
-            date_end=timeend,
-            variable=varname
-        )
-
-        self.logger.info(f"fname from _file_pattern_processed {fname} {timestart} " + \
-                         "{timeend} {varname}")
-        return fname.strip('"')
+    # def _file_pattern(self, timestart, timeend, varname,
+    #                   frequency="6h", stream="pt"):
+    #     """
+    #     Derive the input nc filenames from the file pattern, assuming a
+    #     um model filenaming pattern as here, or could be other patterns
+    #     for other models/platforms (which would need to be added)
+    #
+    #     :param str timestart: The timestep of the start of the data period to process
+    #     :param str timeend: The timestep of the end of the data period to process
+    #     :param str um_stream: The name of the um output stream (output file
+    #     :                     identification)
+    #     :param str frequency: The frequency of the input data (in hours, needs to
+    #     :                     include "h"), used to determine file naming
+    #     :returns: a filename given the inputs to the pattern
+    #     :rtype: str
+    #     """
+    #     if self.frequency is None:
+    #         file_freq = frequency
+    #     else:
+    #         file_freq = str(self.frequency)+"h"
+    #
+    #     if self.input_file_pattern != '':
+    #         # file format based on input pattern
+    #         fname = self.input_file_pattern.format(
+    #             runid=self.runid,
+    #             frequency=file_freq,
+    #             date_start=timestart,
+    #             date_end=timeend,
+    #             variable=varname,
+    #             stream=stream
+    #         )
+    #     self.logger.info(f"fname from _file_pattern {fname} {self.um_stream} {timestart}" +\
+    #                     f" {timeend} {varname}")
+    #     return fname.strip('"')
+    #
+    # def _file_pattern_processed(self, timestart, timeend, varname,
+    #                   frequency="6h"):
+    #     """
+    #     For processed files, we know what the filenames look like, so
+    #     search specifically
+    #
+    #     :param str timestart: The timestep of the start of the data period to process
+    #     :param str timeend: The timestep of the end of the data period to process
+    #     :param str frequency: The frequency of the input data (in hours, needs to
+    #     :                     include "h"), used to determine file naming
+    #     :returns: a filename given the inputs to the pattern
+    #     :rtype: str
+    #     """
+    #     if self.frequency is None:
+    #         file_freq = frequency
+    #     else:
+    #         file_freq = str(self.frequency)+"h"
+    #
+    #     fname = self.file_pattern_processed.format(
+    #         runid=self.runid,
+    #         frequency=file_freq,
+    #         date_start=timestart,
+    #         date_end=timeend,
+    #         variable=varname
+    #     )
+    #
+    #     self.logger.info(f"fname from _file_pattern_processed {fname} {timestart} " + \
+    #                      "{timeend} {varname}")
+    #     return fname.strip('"')
 
     def _generate_data_files(self, timestamp, timestamp_end,
-                             slp_var, grid_resol="native"):
+                             psl_var, grid_resol="native"):
         """
         Identify and then fix the grids and var_names in the input files.
         The time_range and frequency attributes are set when this method runs.
@@ -182,7 +188,7 @@ class UMTempestPreprocess(AbstractApp):
         """
         timestamp_day = timestamp
         self.logger.debug(f"timestamp_day in generate_data_files {timestamp_day}")
-        fname = self._file_pattern(timestamp_day+"*", "*", slp_var,
+        fname = self._file_pattern(timestamp_day+"*", "*", psl_var,
                                    frequency="*", stream=self.um_stream)
         file_search = os.path.join(
             self.input_directory, fname
@@ -242,7 +248,7 @@ class UMTempestPreprocess(AbstractApp):
 
         source_files, processed_files, variable_units = \
             self._process_input_files(timestamp, timestamp_end,
-                                      slp_var, grid_resol=grid_resol)
+                                      psl_var, grid_resol=grid_resol)
 
         return source_files, processed_files, variable_units
 
@@ -287,7 +293,7 @@ class UMTempestPreprocess(AbstractApp):
             self.logger.error(msg)
             raise RuntimeError(msg)
 
-    def _process_input_files(self, time_start, time_end, slp_var,
+    def _process_input_files(self, time_start, time_end, psl_var,
                              grid_resol="native"):
         """
         Identify and then fix the grids and var_names in the input files.
@@ -317,11 +323,11 @@ class UMTempestPreprocess(AbstractApp):
 
         reference_name = self._file_pattern(self.time_range.split("-")[0],
                                             self.time_range.split("-")[1],
-                                            variables_required[slp_var]["fname"],
+                                            variables_required[psl_var]["fname"],
                                             stream=self.um_stream)
         reference_path = os.path.join(self.input_directory, reference_name)
         reference = iris.load_cube(reference_path)
-        variable_units[slp_var] = reference.units
+        variable_units[psl_var] = reference.units
 
         # Identify the grid and orography file
         if grid_resol == "native":
@@ -378,7 +384,7 @@ class UMTempestPreprocess(AbstractApp):
             if not os.path.exists(os.path.dirname(output_path)):
                 os.makedirs(os.path.dirname(output_path))
 
-            # apart from slp, regrid the data to the slp grid (all input data for
+            # apart from psl, regrid the data to the psl grid (all input data for
             # TempestExtremes needs to be on the same grid)
             # regrid u and v to t grid and rename variable if necessary
             cube = iris.load_cube(input_path)
@@ -483,13 +489,10 @@ class UMTempestPreprocess(AbstractApp):
         documentation.
         """
         try:
-            self.runid = os.environ["RUNID_OVERRIDE"]
+            self.suiteid = os.environ["SUITEID_OVERRIDE"]
         except:
-            self.runid = os.environ["RUNID"]
-        try:
-            self.suiteid = os.environ["RUNID_OVERRIDE"]
-        except:
-            self.suiteid = os.environ["RUNID"]
+            self.suiteid = os.environ["SUITE"]
+        self.runid = self.suiteid.split('-')[1]
         self.resolution_code = os.environ["RESOL_ATM"]
         print('resol in ',self.resolution_code)
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]

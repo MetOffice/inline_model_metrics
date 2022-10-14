@@ -2,6 +2,7 @@
 # Please see LICENSE for license details.
 from abc import ABCMeta, abstractmethod
 import os
+import glob
 import subprocess
 
 import iris
@@ -37,7 +38,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         self.cmd_edit = None
         self.source_files = {}
         self.processed_files = {}
-        self.processed_files_slp = {}
+        self.processed_files_psl = {}
         self.variable_units = {}
         self.calendar_units = "days since 1950-01-01 00:00:00"
         self.regrid_resolutions = None
@@ -79,6 +80,60 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             )
             raise RuntimeError(msg)
         return sts
+
+    def _set_tracking_date(self, timestamp,
+                              dot_file='current_tracking_date'):
+        """
+        Write a file indicating that this timestep is where the tracking has reached
+
+        :param str timestamp: The timestep of the start of the data period to process
+        :param str timestamp_end: The timestep of the end of the data period to process
+        :param str dot_file: The first part of the string of a filename to indicate
+        :                    which time periods still need tracking
+
+        """
+        if not os.path.exists(self.outdir):
+            os.makedirs(self.outdir)
+
+        current_tracking_file = os.path.join(self.outdir, dot_file+'.' + timestamp)
+        previous_tracking_file = glob.glob(os.path.join(self.outdir, dot_file+'.*'))
+
+        if len(previous_tracking_file) == 1:
+            date_previous = os.path.basename(previous_tracking_file[0]).split('.')[1]
+            if _is_date_after_or_equal(timestamp, date_previous):
+                os.remove(previous_tracking_file[0])
+                os.system('touch ' + current_tracking_file)
+                return "DoTracking"
+            else:
+                return "AlreadyComplete"
+        elif len(previous_tracking_file) == 0:
+            os.system('touch ' + current_tracking_file)
+            return "DoTracking"
+        else:
+            raise Exception('Too many previous tracking file dates')
+
+    def _get_tracking_date(self, timestamp,
+                              dot_file='current_tracking_date'):
+        """
+        Write a file indicating that this timestep is where the tracking has reached
+
+        :param str timestamp: The timestep of the start of the data period to process
+        :param str timestamp_end: The timestep of the end of the data period to process
+        :param str dot_file: The first part of the string of a filename to indicate
+        :                    which time periods still need tracking
+
+        """
+        previous_tracking_file = glob.glob(os.path.join(self.outdir, dot_file+'.*'))
+        if len(previous_tracking_file) == 1:
+            date_previous = os.path.basename(previous_tracking_file[0]).split('.')[1]
+            if _is_date_after_or_equal(timestamp, date_previous):
+                return "DoTracking"
+            else:
+                return "AlreadyComplete"
+        elif len(previous_tracking_file) == 0:
+            return "DoTracking"
+        else:
+            raise Exception('Too many previous tracking file dates')
 
     def _write_dot_track_file(self, timestamp, timestamp_end,
                               dot_file='do_tracking'):
@@ -154,8 +209,8 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         # cmd = 'mv '+ track_file+ ' '+tidy_dir
         # os.system(cmd)
 
-    def _file_pattern(self, timestart, timeend, varname, um_stream='pt',
-                      frequency='6h'):
+    def _file_pattern(self, timestart, timeend, varname, stream="pt",
+                      frequency="6h"):
         """
         Derive the input nc filenames from the file pattern, assuming a
         um model filenaming pattern as here, or could be other patterns
@@ -183,18 +238,18 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                     frequency=file_freq,
                     date_start=timestart,
                     date_end=timeend,
-                    stream=um_stream,
+                    stream=stream,
                     variable=varname
                 )
             else:
                 # file format from direct STASH to netcdf conversion
                 fname = self.input_file_pattern.format(
                     runid=self.runid,
-                    stream=um_stream,
+                    stream=stream,
                     date_start=timestart,
                     variable=varname
                 )
-        self.logger.info(f"fname from pattern {fname} {um_stream} {timestart} "
+        self.logger.info(f"fname from pattern {fname} {stream} {timestart} "
                         f"{timeend} {varname}")
         return fname.strip('"')
 
@@ -226,7 +281,8 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             variable=varname
         )
 
-        self.logger.info(f"fname from pattern {fname} {timestart} {timeend} {varname}")
+        self.logger.info(f"fname from _file_pattern_processed {fname} {timestart} " + \
+                         "{timeend} {varname}")
         return fname.strip('"')
 
     def _construct_command(self, track_type):
@@ -483,13 +539,13 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
 
         # TODO check that the variables here match those in the documentation
         try:
-            self.runid = os.environ["RUNID_OVERRIDE"]
-        except:
-            self.runid = os.environ["RUNID"]
-        try:
             self.suiteid = os.environ["SUITEID_OVERRIDE"]
         except:
             self.suiteid = os.environ["CYLC_SUITE_NAME"]
+        try:
+            self.runid = self.suiteid.split('-')[1]
+        except:
+            self.runid = self.suiteid
         self.resolution_code = os.environ["RESOL_ATM"]
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
         self.time_cycle = os.environ["TIME_CYCLE"]

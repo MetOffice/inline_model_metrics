@@ -17,7 +17,7 @@ class TempestError(Exception):
     pass
 
 
-class TempestExtremesAR(TempestExtremesAbstract):
+class FrontalIdentification(TempestExtremesAbstract):
     """
     Run the TempestExtremes atmospheric river tracker inline with a climate
     model.
@@ -62,9 +62,8 @@ class TempestExtremesAR(TempestExtremesAbstract):
         # initialise variables that might not get set if no detection step
         for regrid_resol in self.regrid_resolutions:
             self.processed_files_psl[regrid_resol] = ""
-        for track_type in self.ar_types:
+        for track_type in self.frontid_types:
             self.cmd_detect_type[track_type] = ""
-            self.cmd_stitch_type[track_type] = ""
         self.outdir = self.output_directory + "_" + "native"
 
         self.logger.debug(
@@ -86,12 +85,13 @@ class TempestExtremesAR(TempestExtremesAbstract):
         self.logger.debug(f"is_last_cycle {self.is_last_cycle}")
 
         # Check whether the cylc date is after the most recent post-processed file
-        condition = self._get_tracking_date(timestamp_day)
-        if condition == "AlreadyComplete":
-            return
+        #condition = self._get_tracking_date(timestamp_day)
+        #if condition == "AlreadyComplete":
+        #    self.logger.info(f"This date already completed {timestamp_day}")
+        #    return
 
         # First write a dot_file to document which timestamps are yet to be tracked
-        dot_file = "do_ar_tracking"
+        dot_file = "do_frontal_id"
         candidate_files = []
         self._write_dot_track_file(timestamp_day, timestamp_endday, dot_file=dot_file)
 
@@ -110,8 +110,8 @@ class TempestExtremesAR(TempestExtremesAbstract):
 
                 if self.inline_tracking == "True":
                     self.logger.debug(f"running inline {self.inline_tracking}")
-                    # do not want to do calculations on data after or equal to the current
-                    # cycle date, unless it is also the last
+                    # do not want to do calculations on data after or equal to the
+                    # current cycle date, unless it is also the last
                     if _is_date_after_or_equal(ftimestamp_day, timestamp_day) \
                             and not self.is_last_cycle == "true":
                         continue
@@ -129,7 +129,7 @@ class TempestExtremesAR(TempestExtremesAbstract):
                 for regrid_resol in self.regrid_resolutions:
                     self.outdir = self.output_directory+'_'+regrid_resol
                     fname = self._file_pattern_processed(ftimestamp_day + "*", "*",
-                                                         "viwve",
+                                                         "ta_850",
                                                          frequency=self.data_frequency)
                     file_search = os.path.join(self.outdir, fname)
                     if glob.glob(file_search):
@@ -140,14 +140,14 @@ class TempestExtremesAR(TempestExtremesAbstract):
                         #self.source_files[ftimestamp_day] = source_files
                         self.processed_files[ftimestamp_day] = processed_files
                         self.processed_files_psl[regrid_resol] = \
-                            self.processed_files[ftimestamp_day]["viwve"]
+                            self.processed_files[ftimestamp_day]["ta_850"]
                         self.variable_units = variable_units
 
                         # run TempestExtremes detect blobs
-                        candidate_file = self._run_detect_blobs(ftimestamp_day)
+                        candidate_file = self._run_detect_fronts(ftimestamp_day)
 
                         # process the AR netcdf files
-                        self._process_ar_for_archive(candidate_file)
+                        #self._process_fronts_for_archive(candidate_file)
 
                         # if this timestep has worked OK, then need to remove
                         # the dot_file
@@ -165,20 +165,21 @@ class TempestExtremesAR(TempestExtremesAbstract):
         else:
             self.logger.error(f"no dot files to process ")
 
-        # Test if new year, if so then concatenate all the previous year data into 1 file
+        # Test if new year, if so then concatenate all the previous year data
+        # into 1 file
         is_new_year = (timestamp_day[0:4] != timestamp_previous[0:4]) and \
                 _is_date_after(timestamp_previous, self.startdate)
 
         if is_new_year:
-            self._produce_annual_ar_file(self.outdir, timestamp_previous[0:4])
+            self._produce_annual_fronts_file(self.outdir, timestamp_previous[0:4])
 
         if self.is_last_cycle == "true" or is_new_year:
-            # archive any remaining AR data
-            self._archive_ar_data(self.outdir, is_new_year, timestamp_previous[0:4])
+            # archive any remaining fronts data
+            self._archive_fronts_data(self.outdir, is_new_year, timestamp_previous[0:4])
 
-    def _run_detect_blobs(self, timestamp):
+    def _run_detect_fronts(self, timestamp):
         """
-        Run the Tempest blob detection.
+        Run the front identification.
 
         :param str timestamp: The timestep of data/tracking to process
         :returns: The path to the candidate files (as a list ordered by track
@@ -186,46 +187,54 @@ class TempestExtremesAR(TempestExtremesAbstract):
         :rtype: tuple
         :
         """
+        os.chdir(os.path.dirname(self.frontid_detect_script))
         self.logger.debug(f"cwd {os.getcwd()}")
 
-        for ar_type in self.ar_types:
-            self.logger.debug(f"Running {ar_type} detection")
-            candidatefile = os.path.join(
+        for frontid_type in self.frontid_types:
+            self.logger.debug(f"Running {frontid_type} detection")
+            front_all_raw_file = os.path.join(
                 self.outdir,
-                f"{self.runid}_ARmask_{timestamp}_{ar_type}.nc",
+                f"{self.runid}_fronts_raw_all_{timestamp}_{frontid_type}.nc",
             )
-            self.logger.debug(f"candidatefile {candidatefile}")
+            self.logger.debug(f"candidatefile {front_all_raw_file}")
 
-            #cmd_io = '{} --out {} '.format(
-            #        self.ar_detectblobs_script,
-            #        candidatefile)
-            cmd_io = "{} ".format(self.ar_detectblobs_script)
+            # Identify all raw fronts from model data
+            # put together the command for all frontal identification
+            cmd_io = "{} {} ".format(self.frontid_Rexec, self.frontid_detect_script)
 
-            # need the first input file not to be orography, since that file has to
-            # have a time coordinate
-            fnames = []
-            #for key in self.processed_files[timestamp]:
-            for key in ["viwve", "viwvn"]:
-                if isinstance(self.processed_files[timestamp][key], list):
-                    fnames.extend(self.processed_files[timestamp][key])
-                else:
-                    fnames.append(self.processed_files[timestamp][key])
+            if "rh_850" in self.processed_files[timestamp]:
+                cmd_io += " -r "+self.processed_files[timestamp]["rh_850"] + \
+                    " --rname rh_850"
+            elif "q_850" in self.processed_files[timestamp]:
+                cmd_io += " -q " + self.processed_files[timestamp]["q_850"] + \
+                    " --qname q_850"
+            elif "wb_850" in self.processed_files[timestamp]:
+                cmd_io += " -w " + self.processed_files[timestamp]["wb_850"] + \
+                    " --wname wb_850"
+            else:
+                raise Exception("No humidity file available "+timestamp)
 
-            in_file_list = os.path.join(self.outdir, "in_file_list_detectblobs.txt")
-            with open(in_file_list, "w") as fh:
-                text_str = ";".join(fnames)
-                self.logger.debug(f"file_list {text_str}")
-                fh.write(text_str)
+            if "ta_850" in self.processed_files[timestamp]:
+                cmd_io += " -t "+self.processed_files[timestamp]["ta_850"] + \
+                          " --tname ta_850"
+            elif "wb_850" in self.processed_files[timestamp]:
+                pass
+            else:
+                raise Exception("No temperature file available "+timestamp)
 
-            cmd_io += "--in_data_list "+in_file_list+" --out "+candidatefile+" "
+            if "ua_850" in self.processed_files[timestamp] and \
+                    "va_850" in self.processed_files[timestamp]:
+                cmd_io += " -u "+self.processed_files[timestamp]["ua_850"] + \
+                          " -v " + self.processed_files[timestamp]["va_850"] + \
+                          " --uname ua_850 --vname va_850"
 
-            tracking_phase_commands = self._construct_command(ar_type)
-            cmd_detectblobs = cmd_io + tracking_phase_commands["detectblobs"]
-            self.cmd_detect_type[ar_type] = cmd_detectblobs
-            self.logger.info(f"Detect command {cmd_detectblobs}")
+            cmd_io += " " + front_all_raw_file
+
+            cmd_frontid = cmd_io
+            self.logger.info(f"Front detect command {cmd_frontid}")
 
             sts = subprocess.run(
-                cmd_detectblobs,
+                cmd_frontid,
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -235,14 +244,14 @@ class TempestExtremesAR(TempestExtremesAbstract):
             self.logger.debug(sts.stdout)
             if "EXCEPTION" in sts.stdout:
                 msg = (
-                    f"EXCEPTION found in TempestExtreme detectblobs output\n"
+                    f"EXCEPTION found in front detect output\n"
                     f"{sts.stdout}"
                 )
                 raise RuntimeError(msg)
 
-        return candidatefile
+        return front_all_raw_file
 
-    def _process_ar_for_archive(
+    def _process_fronts_for_archive(
         self,
         fname,
         nc_compression="1",
@@ -250,7 +259,7 @@ class TempestExtremesAR(TempestExtremesAbstract):
     ):
         """
         Process any AR files before archiving
-        :param str archive_directory: The directory to look for any .arch files
+        :param str fname: The filename to operate on
         :param str nc_compression: Compression level for netcdf files
         :param netcdf_format: Format of netcdf files (netcdf4 by default)
         """
@@ -294,22 +303,27 @@ class TempestExtremesAR(TempestExtremesAbstract):
                     os.remove(fname)
                     os.rename(fname[:-3] + "_unlimited.nc", fname)
 
-    def _produce_annual_ar_file(
+    def _produce_annual_fronts_file(
         self,
         outdir,
         year,
     ):
         """
-        Concatenate one year of AR data
+        Merge one year of fronts data
         :param str outdir: output directory which contains AR files
         :param str year: the year of data to concatenate
         """
-        files_to_join = sorted(glob.glob(os.path.join(outdir, "*ARmask_"+year+"????_*.nc")))
+        files_to_join = sorted(glob.glob(os.path.join(outdir,
+                                                      "*fronts_raw_all_"+year+"????_*.nc")))
         if len(files_to_join) > 0:
             file_year = files_to_join[0].replace(year+"0101", "year_"+year)
-            cmd = os.path.join(self.ncodir, "ncrcat") + " " + " ".join(files_to_join) + \
+            cmd_io = "{} {} ".format(self.frontid_Rexec,
+                os.path.join(os.path.dirname(self.frontid_detect_script),
+                             "merge_fronts.R "))
+            cmd = cmd_io + " " + " ".join(files_to_join) + \
                     " " + file_year
-            self.logger.info(f"ncrcat cmd {cmd}")
+
+            self.logger.info(f"merge_fronts cmd {cmd}")
 
             sts = subprocess.run(
                 cmd,
@@ -327,44 +341,50 @@ class TempestExtremesAR(TempestExtremesAbstract):
                 for f in files_to_join:
                     os.remove(f)
 
-    def _archive_ar_data(self, outdir, is_new_year, year):
+    def _archive_fronts_data(self, outdir, is_new_year, year):
         """
         Archive the required AR data
         :param str outdir: output directory from which to archive AR files
         """
         if self.is_last_cycle == "true" :
-            files_to_archive = glob.glob(os.path.join(outdir, "*ARmask*.nc"))
+            files_to_archive = glob.glob(os.path.join(outdir, "*fronts_raw_all*.nc"))
         elif is_new_year:
-            files_to_archive = glob.glob(os.path.join(outdir, "*ARmask*year_"+year+"*.nc"))
+            files_to_archive = glob.glob(os.path.join(outdir,
+                                                      "*fronts_raw_all*year_" + year + "*.nc"))
         self.logger.info(f"files_to_archive {files_to_archive}")
 
         if not os.path.exists(os.path.join(outdir, self._archived_files_dir)):
             os.makedirs(os.path.join(outdir, self._archived_files_dir))
 
         if len(files_to_archive) > 0:
-            for ar_file in files_to_archive:
-                # move ar_file to archive directory
-                ar_archive_file = os.path.join(outdir, self._archived_files_dir,
-                                                os.path.basename(ar_file))
+            for front_file in files_to_archive:
+                # move front_file to archive directory
+                front_archive_file = os.path.join(outdir, self._archived_files_dir,
+                                                os.path.basename(front_file))
                 if self.is_last_cycle:
-                    shutil.copy(ar_file, ar_archive_file)
+                    shutil.copy(front_file, front_archive_file)
                 else:
-                    os.replace(ar_file, ar_archive_file)
+                    os.replace(front_file, front_archive_file)
+                self.logger.info(f"archived {front_file} to {front_archive_file}")
 
-                with open(ar_archive_file + ".arch", "a"):
-                    os.utime(ar_archive_file + ".arch", None)
+                with open(front_archive_file + ".arch", "a"):
+                    os.utime(front_archive_file + ".arch", None)
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""
 
         super()._get_app_options()
 
-        self.ar_detectblobs_script = self.app_config.get_property(
-            "common", "ar_detectblobs_script"
+        self.frontid_detect_script = self.app_config.get_property(
+            "common", "frontid_detect_script"
+        )
+        self.frontid_Rexec = self.app_config.get_property(
+            "common", "frontid_Rexec"
         )
         # track_types is a Python list so eval converts str to list
-        self.ar_types = eval(self.app_config.get_property("common", "ar_types"))
+        self.frontid_types = eval(self.app_config.get_property("common",
+                                                               "frontid_types"))
         self.variables_input = eval(self.app_config.get_property("common",
-                                                                "ar_variables_input"))
+                                                        "frontid_variables_input"))
         self.variables_rename = eval(self.app_config.get_property("common",
-                                                                "ar_variables_rename"))
+                                                        "frontid_variables_rename"))

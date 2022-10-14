@@ -35,20 +35,20 @@ class TestTempestTracker(unittest.TestCase):
         resolution=N96
         input_directory=${DATAM}
         output_directory=${DATAM}/tempest_tracking
-        nodeedit_vars=["slp", "uas", "vas"]
+        nodeedit_vars=["psl", "uas", "vas"]
         regrid_resolutions=["native"]
         tc_detect_script=/home/d05/hadom/tempestextremes-master/bin/DetectNodes
         tc_stitch_script=/home/d05/hadom/tempestextremes-master/bin/StitchNodes
-        track_types=['tc_slp']
-        tc_variables_input=["slp", "uas"]
-        tc_variables_rename=["slp", "uas"]
+        track_types=['tc_psl']
+        tc_variables_input=["psl", "uas"]
+        tc_variables_rename=["psl", "uas"]
         um_file_pattern="{runid}a.{stream}{date_start}_{variable}.nc"
         file_pattern_processed = "{variable}_{frequency}_{runid}_{date_start}-{date_end}.nc"
-        in_fmt_stitch_default="lon,lat,slp_min,sfcWind_max"
-        out_fmt_profile1_default="lon,lat,slp_min,sfcWind_max"
-        out_fmt_profile2_default="lon,lat,slp_min"
+        in_fmt_stitch_default="lon,lat,psl_min,sfcWind_max"
+        out_fmt_profile1_default="lon,lat,psl_min,sfcWind_max"
+        out_fmt_profile2_default="lon,lat,psl_min"
 
-        [tc_slp_detect]
+        [tc_psl_detect]
         searchbymin="air_pressure_at_sea_level"
         mergedist=6.0
         closedcontourcmd="air_pressure_at_sea_level,200.0,5.5,0;_DIFF(zg(0),zg(2)),-6.0,6.5,1.0"
@@ -57,12 +57,12 @@ class TestTempestTracker(unittest.TestCase):
         lonname="longitude"
         verbosity=
 
-        [tc_slp_stitch]
+        [tc_psl_stitch]
         in_fmt="in_fmt_stitch_default"
         min_endpoint_dist=8.0
         
-        [tc_slp_profile]
-        in_fmt="lon,lat,slp,wind10m,zgdiff,surface_altitude"
+        [tc_psl_profile]
+        in_fmt="lon,lat,psl,wind10m,zgdiff,surface_altitude"
         out_fmt="out_fmt_profile1_default"
         """  # noqa
 
@@ -78,7 +78,7 @@ class TestTempestTracker(unittest.TestCase):
         app = TempestExtremesCyclone(args)
         app._get_app_options()
         app._get_environment_variables()
-        commands = app._construct_command("tc_slp")
+        commands = app._construct_command("tc_psl")
         expected = {
             "detect": '--closedcontourcmd "air_pressure_at_sea_level,200.0,5.5,'
             '0;_DIFF(zg(0),zg(2)),-6.0,6.5,1.0" '
@@ -89,9 +89,9 @@ class TestTempestTracker(unittest.TestCase):
             "x_wind,y_wind),max,2;_DIFF(zg(0),zg(2)),min,6.5;surface"
             '_altitude,max,0" '
             '--searchbymin "air_pressure_at_sea_level"',
-            "stitch": '--in_fmt "lon,lat,slp_min,sfcWind_max" --min_endpoint_dist 8.0',
-            "profile": '--in_fmt "lon,lat,slp,wind10m,zgdiff,surface_altitude" '
-            '--out_fmt "lon,lat,slp_min,sfcWind_max"',
+            "stitch": '--in_fmt "lon,lat,psl_min,sfcWind_max" --min_endpoint_dist 8.0',
+            "profile": '--in_fmt "lon,lat,psl,wind10m,zgdiff,surface_altitude" '
+            '--out_fmt "lon,lat,psl_min,sfcWind_max"',
             "detectblobs": None,
             "nodefilefilter": None,
         }

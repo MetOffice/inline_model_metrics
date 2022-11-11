@@ -177,6 +177,35 @@ class FrontalIdentification(TempestExtremesAbstract):
             # archive any remaining fronts data
             self._archive_fronts_data(self.outdir, is_new_year, timestamp_previous[0:4])
 
+    def _read_frontid_options(self, front_type):
+        """
+        Read the front_id command line parameters from the configuration.
+        :param str front_type: The name of the type of tracking to run, possible
+            values: detect
+        :returns: A dictionary with keys of `detect`, and the values for each
+            of these is
+            a string containing the command line parameters for each of these
+            front-id steps. The parameters are sorted into alphabetical
+            order in each line.
+        :rtype: dict
+        """
+
+        commands = {}
+        fmt_value = {}
+        for step in ["detect"]:
+            try:
+                step_config = self.app_config.section_to_dict(f"{front_type}_{step}")
+                step_arguments = []
+                for parameter in sorted(list(step_config.keys())):
+                    if step_config[parameter]:
+                        param_value = step_config[parameter]
+                        step_arguments.append(f"--{parameter} {param_value}")
+                commands[step] = " ".join(step_arguments)
+                self.logger.debug(f"step, commands {step} {commands[step]}")
+            except:
+                commands[step] = ""
+        return commands
+
     def _run_detect_fronts(self, timestamp):
         """
         Run the front identification.
@@ -227,6 +256,9 @@ class FrontalIdentification(TempestExtremesAbstract):
                 cmd_io += " -u "+self.processed_files[timestamp]["ua_850"] + \
                           " -v " + self.processed_files[timestamp]["va_850"] + \
                           " --uname ua_850 --vname va_850"
+
+            frontid_options = self._read_frontid_options(frontid_type)
+            cmd_io += " " + frontid_options["detect"]
 
             cmd_io += " " + front_all_raw_file
 

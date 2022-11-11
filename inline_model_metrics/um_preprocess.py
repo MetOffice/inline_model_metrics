@@ -80,7 +80,7 @@ class UMTempestPreprocess(TempestExtremesAbstract):
 
         self.logger.debug(
             f"CYLC_TASK_CYCLE_TIME {self.cylc_task_cycle_time}, "
-            f"runid {self.runid}"
+            f"runid {self.runid}, psl_input_var {psl_input_var}"
         )
 
         timestamp_day = self.cylc_task_cycle_time[:8]
@@ -358,11 +358,16 @@ class UMTempestPreprocess(TempestExtremesAbstract):
                                           variables_required[var]["fname"],
                                           stream=self.um_stream)
 
-            input_path = os.path.join(self.input_directory, filename)
-            if not os.path.exists(input_path):
+            #input_path = os.path.join(self.input_directory, filename)
+            #if not os.path.exists(input_path):
+            fin_path = os.path.join(self.input_directory, filename)
+            file_search = glob.glob(fin_path)
+            if len(file_search) != 1:
                 msg = f"Unable to find expected input file {input_path}"
                 self.logger.error(msg)
                 raise RuntimeError(msg)
+            else:
+                input_path = file_search[0]
 
             # make the output path filename similar to CMIP6 naming, will be standard
             # regardless of the input filename structure
@@ -492,7 +497,10 @@ class UMTempestPreprocess(TempestExtremesAbstract):
             self.suiteid = os.environ["SUITEID_OVERRIDE"]
         except:
             self.suiteid = os.environ["SUITE"]
-        self.runid = self.suiteid.split('-')[1]
+        try:
+            self.runid = self.suiteid.split('-')[1]
+        except:
+            self.runid = self.suiteid
         self.resolution_code = os.environ["RESOL_ATM"]
         print('resol in ',self.resolution_code)
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]

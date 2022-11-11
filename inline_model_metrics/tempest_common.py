@@ -231,24 +231,23 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             file_freq = str(self.data_frequency)
 
         if self.input_file_pattern != '':
-            if 'atmos' in self.input_file_pattern:
-                # file format from postproc
-                fname = self.input_file_pattern.format(
-                    runid=self.runid,
-                    frequency=file_freq,
-                    date_start=timestart,
-                    date_end=timeend,
-                    stream=stream,
-                    variable=varname
-                )
-            else:
-                # file format from direct STASH to netcdf conversion
-                fname = self.input_file_pattern.format(
-                    runid=self.runid,
-                    stream=stream,
-                    date_start=timestart,
-                    variable=varname
-                )
+            # file format from postproc
+            fname = self.input_file_pattern.format(
+                runid=self.runid,
+                frequency=file_freq,
+                date_start=timestart,
+                date_end=timeend,
+                stream=stream,
+                variable=varname
+            )
+            #else:
+            #    # file format from direct STASH to netcdf conversion
+            #    fname = self.input_file_pattern.format(
+            #        runid=self.runid,
+            #        stream=stream,
+            #        date_start=timestart,
+            #        variable=varname
+            #    )
         self.logger.info(f"fname from pattern {fname} {stream} {timestart} "
                         f"{timeend} {varname}")
         return fname.strip('"')

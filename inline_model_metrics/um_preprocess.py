@@ -68,6 +68,14 @@ class UMTempestPreprocess(TempestExtremesAbstract):
                 msg = f"Unable to create output directory {output_dir_native}"
                 self.logger.error(msg)
                 sys.exit(1)
+        output_dir_native_archive = os.path.join(self.output_directory + '_native', self._archived_files_dir)
+        if not os.path.exists(output_dir_native_archive):
+            try:
+                os.makedirs(output_dir_native_archive)
+            except PermissionError:
+                msg = f"Unable to create output directory {output_dir_native_archive}"
+                self.logger.error(msg)
+                sys.exit(1)
 
         # initialise variables that might not get set if no detection step
         self.outdir = self.output_directory + "_" + "native"

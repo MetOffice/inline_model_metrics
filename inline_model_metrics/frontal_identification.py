@@ -397,6 +397,7 @@ class FrontalIdentification(TempestExtremesAbstract):
                     shutil.copy(front_file, front_archive_file)
                 else:
                     os.replace(front_file, front_archive_file)
+                    os.remove(front_file)
                 self.logger.info(f"archived {front_file} to {front_archive_file}")
 
                 with open(front_archive_file + ".arch", "a"):

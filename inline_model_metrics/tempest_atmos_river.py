@@ -307,9 +307,13 @@ class TempestExtremesAR(TempestExtremesAbstract):
         files_to_join = sorted(glob.glob(os.path.join(outdir, "*ARmask_"+year+"????_*.nc")))
         if len(files_to_join) > 0:
             file_year = files_to_join[0].replace(year+"0101", "year_"+year)
-            cmd = os.path.join(self.ncodir, "ncrcat") + " " + " ".join(files_to_join) + \
-                    " " + file_year
-            self.logger.info(f"ncrcat cmd {cmd}")
+            if len(files_to_join) > 1:
+                cmd = os.path.join(self.ncodir, "ncrcat") + " " + " ".join(files_to_join) + \
+                        " " + file_year
+                self.logger.info(f"ncrcat cmd {cmd}")
+            else:
+                cmd = "cp " + files_to_join[0] + " " + file_year
+                self.logger.info(f"copy cmd {cmd}")
 
             sts = subprocess.run(
                 cmd,
@@ -350,6 +354,7 @@ class TempestExtremesAR(TempestExtremesAbstract):
                     shutil.copy(ar_file, ar_archive_file)
                 else:
                     os.replace(ar_file, ar_archive_file)
+                    os.remove(ar_file)
 
                 with open(ar_archive_file + ".arch", "a"):
                     os.utime(ar_archive_file + ".arch", None)

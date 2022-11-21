@@ -14,53 +14,51 @@ def extract_version():
     """
     Retrieve version information from the  __init__.py module.
     """
-    version = ''
+    version = ""
     directory = os.path.dirname(__file__)
-    filename = os.path.join(directory, 'inline_model_metrics', '__init__.py')
+    filename = os.path.join(directory, "inline_model_metrics", "__init__.py")
 
     with open(filename) as fd:
         for line in fd:
             line = line.strip()
-            if line.startswith('__version__'):
+            if line.startswith("__version__"):
                 try:
-                    version = line.split('=')[1].strip(' "\'')
+                    version = line.split("=")[1].strip(" \"'")
                 except Exception:
                     pass
                 break
 
     if not version:
-        print('WARNING: Unable to parse version information from '
-              'file: {}'.format(filename))
-        version = '0.0.0'
+        print(f"WARNING: Unable to parse version information from file: {filename}")
+        version = "0.0.0"
 
     return version
 
 
 setuptools.setup(
-    name='inline_model_metrics',
-    packages=['inline_model_metrics'],
+    name="inline_model_metrics",
+    packages=["inline_model_metrics"],
     version=extract_version(),
-    license='BSD 3-Clause License',
-    description=('inline_model_metrics is a package to to run model metrics inline with a climate model.'),
+    license="BSD 3-Clause License",
+    description=(
+        "inline_model_metrics is a package to to run model metrics inline with a climate model."
+    ),
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
-    author='Met Office',
-    author_email='jon.seddon@metoffice.gov.uk',
-    url='https://github.com/MetOffice/inline_model_metrics',
-    download_url='https://github.com/MetOffice/inline_model_metrics/releases',
-    keywords=['climate', 'tracking', 'inline'],
-    install_requires=[
-        'metoffice-afterburner'
-    ],
+    author="Met Office",
+    author_email="jon.seddon@metoffice.gov.uk",
+    url="https://github.com/MetOffice/inline_model_metrics",
+    download_url="https://github.com/MetOffice/inline_model_metrics/releases",
+    keywords=["climate", "tracking", "inline"],
+    install_requires=["metoffice-afterburner"],
     classifiers=[
-        'Development Status :: 5 - Production/Stable',
-        'License :: OSI Approved :: BSD License',
-        'Natural Language :: English',
-        'Topic :: Scientific/Engineering :: Atmospheric Science',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
-
+        "Development Status :: 5 - Production/Stable",
+        "License :: OSI Approved :: BSD License",
+        "Natural Language :: English",
+        "Topic :: Scientific/Engineering :: Atmospheric Science",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
 )

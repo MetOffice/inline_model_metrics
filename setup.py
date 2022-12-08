@@ -50,7 +50,13 @@ setuptools.setup(
     url="https://github.com/MetOffice/inline_model_metrics",
     download_url="https://github.com/MetOffice/inline_model_metrics/releases",
     keywords=["climate", "tracking", "inline"],
-    install_requires=["metoffice-afterburner"],
+    install_requires=[
+        "metoffice-afterburner",
+        "scitools-iris",
+        "netCDF4",
+        "numpy",
+        "tempest-helper",
+    ],
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "License :: OSI Approved :: BSD License",

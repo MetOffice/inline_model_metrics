@@ -1,0 +1,12 @@
+name: inline-model-metrics
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.8
+  - metoffice-afterburner
+  - iris
+  - netcdf4
+  - numpy
+  - tempest-helper

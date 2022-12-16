@@ -1,7 +1,7 @@
 # inline_model_metrics
 A Met Office tenten project Rose app to run model metrics inline with a climate model.
 
-Documentation is available from: https://inline-model-metrics.readthedocs.io/
+Documentation is available from: https://metoffice.github.io/inline_model_metrics/
 
 The code consists of a preprocessor (currently specific to the UM output) which takes the input data from a source (model, reanalysis etc) and produces variables and filename suitable for use by the inline codes. 
 

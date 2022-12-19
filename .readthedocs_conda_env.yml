@@ -9,4 +9,5 @@ dependencies:
   - iris
   - netcdf4
   - numpy
-  - tempest-helper
+  - pip:
+    - tempest-helper

@@ -5,6 +5,8 @@ channels:
 
 dependencies:
   - python=3.8
+  - fortran-compiler
+  - rsync
   - iris
   - netcdf4
   - numpy

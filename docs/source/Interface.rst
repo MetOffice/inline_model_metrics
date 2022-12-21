@@ -66,36 +66,42 @@ Environment Variables
 
 The Python code requires the following environment variables to be set:
 
-+----------------------+------------------------------------------------------+
-| Name                 | Description                                          |
-+======================+======================================================+
-| CYLC_TASK_CYCLE_TIME | The Cylc task cycle (current) time                   |
-+----------------------+------------------------------------------------------+
-| RUNID (by default)   | The UM RUNID (e.g. cb196)                            |
-| or RUNID_OVERRIDE    | An override runid for input files (e.g. if running   |
-|                      | tracking under a serparate suite name                |
-+----------------------+------------------------------------------------------+
-| SUITEID (by default) | The UM SUITEID (e.g. u-cb196)                        |
-| or SUITEID_OVERRIDE  | consistent with RUNID_OVERRIDE above                 |
-+----------------------+------------------------------------------------------+
-| CYLC_TASK_CYCLE_TIME | The current cylc CYCLE time                          |
-+----------------------+------------------------------------------------------+
-| PREVIOUS_CYCLE       | The previous cylc CYCLE time                         |
-+----------------------+------------------------------------------------------+
-| NEXT_CYCLE           | The next cylc CYCLE time                             |
-+----------------------+------------------------------------------------------+
-| STARTDATE            | The start date for this cycle                        |
-+----------------------+------------------------------------------------------+
-| ENDDATE              | The end date for this cycle                          |
-+----------------------+------------------------------------------------------+
-| LASTCYCLE            | The date for the last cycle                          |
-+----------------------+------------------------------------------------------+
-| IS_LAST_CYCLE        | Logical, is this the last cycle of the simulation    |
-+----------------------+------------------------------------------------------+
-| NCODIR               | The directory path to nco                            |
-+----------------------+------------------------------------------------------+
-| MPLBACKEND           | The matplotlib backend (when DISPLAY is not defined  |
-+----------------------+------------------------------------------------------+
++----------------------------+------------------------------------------------------------+
+| Name                       | Description                                                |
++============================+============================================================+
+| CYLC_TASK_CYCLE_TIME       | The Cylc task cycle (current) time                         |
++----------------------------+------------------------------------------------------------+
+| RUNID (by default)         | The UM RUNID (e.g. cb196)                                  |
+| or SUITEID_OVERRID         | An override runid for input files (e.g. if running         |
+| or CYLC_SUITE_NAME         | tracking under a serparate suite name                      |
++----------------------------+------------------------------------------------------------+
+| SUITEID_OVERRIDE (default) | The UM SUITEID (e.g. u-cb196)                              |
+| or CYLC_SUITE_NAME         | consistent with RUNID_OVERRIDE above                       |
++----------------------------+------------------------------------------------------------+
+| TIME_CYCLE                 | The current cylc CYCLE time                                |
++----------------------------+------------------------------------------------------------+
+| PREVIOUS_CYCLE             | The previous cylc CYCLE time                               |
++----------------------------+------------------------------------------------------------+
+| TM2_CYCLE                  |                                                            |
++----------------------------+------------------------------------------------------------+
+| TP2_CYCLE                  |                                                            |
++----------------------------+------------------------------------------------------------+
+| STARTDATE                  | The start date for this cycle                              |
++----------------------------+------------------------------------------------------------+
+| ENDDATE                    | The end date for this cycle                                |
++----------------------------+------------------------------------------------------------+
+| LASTCYCLE                  | The date for the last cycle                                |
++----------------------------+------------------------------------------------------------+
+| IS_LAST_CYCLE              | Logical, is this the last cycle of the simulation          |
++----------------------------+------------------------------------------------------------+
+| NCODIR                     | The directory path to nco                                  |
++----------------------------+------------------------------------------------------------+
+| MPLBACKEND                 | The matplotlib backend (when DISPLAY is not defined)       |
++----------------------------+------------------------------------------------------------+
+| INLINE_TRACKING            | Boolean (true or false) whether run inline or from archive |
++----------------------------+------------------------------------------------------------+
+| RESOL_ATM                  | The code representing the atmosphere resolution, e.g. n96e |
++----------------------------+------------------------------------------------------------+
 
 In the default configuration, the following environment variable is used in
 `rose-app.conf` and needs to be set by the suite (which happens by default in

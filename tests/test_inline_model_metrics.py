@@ -19,17 +19,20 @@ class TestTempestTracker(unittest.TestCase):
         self.runtime_dir = tempfile.mkdtemp()
         _fd, self.cfg_file = tempfile.mkstemp(suffix=".conf", dir=self.runtime_dir)
         os.environ["RUNID"] = "ab123"
+        os.environ["RESOL_ATM"] = "n96e"
         os.environ["CYLC_SUITE_NAME"] = "u-ab123"
         os.environ["CYLC_TASK_CYCLE_TIME"] = "20000101T0000Z"
         os.environ["NEXT_CYCLE"] = "20000201T0000Z"
         os.environ["TIME_CYCLE"] = "20000101T0000Z"
         os.environ["TM2_CYCLE"] = "19991101T0000Z"
+        os.environ["TP2_CYCLE"] = "19991101T0000Z"
         os.environ["PREVIOUS_CYCLE"] = "19991201T0000Z"
         os.environ["STARTDATE"] = "19700101T0000Z"
         os.environ["LASTCYCLE"] = "20191201T0000Z"
         os.environ["ENDDATE"] = "20200101T0000Z"
         os.environ["IS_LAST_CYCLE"] = "true"
         os.environ["NCODIR"] = "/some/dir"
+        os.environ["INLINE_TRACKING"] = "false"
         self.basic_app_config = """
         [common]
         resolution=N96

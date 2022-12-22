@@ -88,13 +88,10 @@ def convert_to_date(date_string):
 
 def latest_mass_file(suite, stream="p7"):
     cmd = "moo ls -t moose:/crum/" + suite + "/a" + stream + ".pp"
-    sts = subprocess.Popen(
-        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    out, err = sts.communicate()
-    mass_list = sorted(str(out).strip().split("\\n"))
+    sts = run_cmd(cmd, check=True)
+    mass_list = sorted(str(sts.stdout).strip().split("\n"))
     if len(mass_list) > 0:
-        print("last mass file ", mass_list[-1])
+        logger.debug(f"last mass file {mass_list[-1]}")
         mass_date = (mass_list[-1].split("/")[-1]).split(".")[1][2:]
         return mass_date
     else:
@@ -102,12 +99,9 @@ def latest_mass_file(suite, stream="p7"):
 
 
 def latest_local_file(suite, dirname):
-    cmd1 = "ls -l " + dirname + "/" + suite[2:] + "a.*.nc"
-    sts1 = subprocess.Popen(
-        cmd1, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    out, err = sts1.communicate()
-    file_listing = str(out).split("\\n")
+    cmd = "ls -l " + dirname + "/" + suite[2:] + "a.*.nc"
+    sts = run_cmd(cmd, check=True)
+    file_listing = str(sts.stdout).split("\n")
     file_list = []
     for f in file_listing:
         a = f.split(" ")
@@ -116,7 +110,7 @@ def latest_local_file(suite, dirname):
             file_list.append(fpath)
     if len(file_list) > 0:
         file_date = os.path.basename(file_list[-1].split(".")[1][2:10])
-        print("last local file ", file_list[-1])
+        logger.debug(f"last local file {file_list[-1]}")
         return file_date
     else:
         return None
@@ -134,8 +128,8 @@ def get_file(fin, dirname, strm):
             + " "
             + dirname
         )
-        print(cmd)
-        os.system(cmd)
+        logger.debug(cmd)
+        run_cmd(cmd, check=True)
 
 
 def get_stash_constraint(stashcode):
@@ -146,6 +140,14 @@ def get_stash_constraint(stashcode):
 
 
 def run_cmd(cmd, check=True):
+    """
+    Run the command 'cmd' in a shell.
+
+    :param str cmd: The command to run.
+    :param bool check: Raise an exception if there's a non-zero return code.
+    :rtype: subprocess.CompletedProcess
+    :return: The subprocess.run() return object
+    """
     sts = subprocess.run(
         cmd,
         shell=True,
@@ -154,24 +156,23 @@ def run_cmd(cmd, check=True):
         universal_newlines=True,
         check=check,
     )
-    print("cmd ", sts.stdout)
     if sts.stderr:
         if "Warning" in sts.stderr:
-            msg = ("Warning found in cat output ", sts.stderr)
-            print(msg)
+            msg = f"Warning found in cmd output {sts.stderr}"
+            logger.warning(msg)
         else:
-            msg = ("Error found in cat output ", sts.stderr)
+            msg = f"Error found in cat output {sts.stderr}"
             raise RuntimeError(msg)
     return sts
 
 
 def change_time_units(fout, fout_tmp1, fout_tmp2):
     cmd = "cdo setreftime," + reftime + " " + fout_tmp1 + " " + fout_tmp2
-    print(cmd)
+    logger.debug(cmd)
     run_cmd(cmd)
     # remove the leadtime variable that cdo adds
     cmd = "ncks -O -x -v leadtime " + fout_tmp2 + " " + fout
-    print(cmd)
+    logger.debug(cmd)
     run_cmd(cmd)
 
 
@@ -201,7 +202,7 @@ def get_environment_variables():
     cycleperiod = os.environ["CYCLEPERIOD"]
     dir_in = os.environ["DIR_IN"]
     dir_out = os.environ["DIR_OUT"]
-    print("dir_in ", dir_in)
+    logger.debug(f"dir_in {dir_in}")
     data_freq = int(os.environ["DATA_FREQ"])
 
     current_year = time_cycle[0:4]
@@ -267,7 +268,7 @@ def modify_time_coord(pp, fout, fout_tmp1, fout_tmp2, st):
             standard_name="time",
             units=cf_units.Unit(pp.coord("time").units, calendar=calendar),
         )
-        print("new_time ", new_time.points)
+        logger.debug(f"new_time {new_time.points}")
         pp.remove_coord("time")
         pp.add_dim_coord(new_time, 0)
         pp.var_name = st
@@ -302,10 +303,10 @@ def test_file_dates(suite, dirname, period):
     else:
         datef, datestrf = None, None
 
-    print("most recent file is ", datef, datestrf)
-    print("most recent mass file is ", datem, datestrm)
+    logger.debug(f"most recent file is {datef} {datestrf}")
+    logger.debug(f"most recent mass file is {datem} {datestrm}")
 
-    print("compare curr time ", period, " with file ", datestrf, "and mass ", datestrm)
+    logger.debug(f"compare curr time {period} with file {datestrf} and mass {datestrm}")
     if datestrf is None:
         if datestrm is not None:
             condition = "GetData"
@@ -353,7 +354,7 @@ def main():
 
     # test what data is available in MASS and what data has been done so far
     condition = test_file_dates(um_suiteid, dir_write, period)
-    print("condition ", condition)
+    logger.debug(f"condition {condition}")
 
     if condition == "GetData":
         pass
@@ -390,7 +391,7 @@ def main():
         strm = stream[st]
         for f in files[strm]:
             stash_con = get_stash_constraint(stash[st])
-            print(st, stash[st], stash_con)
+            logger.debug(f"{st} {stash[st]} {stash_con}")
             fname_base = os.path.basename(f).split(".")
             fname_pt = ".".join(
                 [fname_base[0], stream_out + fname_base[1][2:], fname_base[2]]

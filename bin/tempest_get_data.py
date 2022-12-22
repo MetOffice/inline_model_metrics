@@ -2,13 +2,23 @@
 # (C) British Crown Copyright 2022, Met Office.
 # Please see LICENSE for license details.
 
+import argparse
 from datetime import datetime
 import glob
+import logging.config
 import os
 import subprocess
+import sys
 
 import cf_units
+import inline_model_metrics as imm
 import iris
+
+
+DEFAULT_LOG_LEVEL = logging.WARNING
+DEFAULT_LOG_FORMAT = "%(levelname)s: %(message)s"
+
+logger = logging.getLogger(__name__)
 
 months = {
     "01": "jan",
@@ -316,8 +326,26 @@ def test_file_dates(suite, dirname, period):
 
     return condition
 
+def parse_args():
+    """
+    Parse command-line arguments
+    """
+    parser = argparse.ArgumentParser(description="Ingest a dataset into the DMT")
+    parser.add_argument(
+        "-l",
+        "--log-level",
+        help="set logging level to one of debug, info, warn (the default), or error",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {imm.__version__}"
+    )
+    args = parser.parse_args()
+
+    return args
+
 
 def main():
+    """Main entry point"""
     get_environment_variables()
     dir_write = os.path.join(dir_out, um_suiteid)
     if not os.path.exists(dir_write):
@@ -399,4 +427,40 @@ def main():
 
 
 if __name__ == "__main__":
+    cmd_args = parse_args()
+
+    # determine the log level
+    if cmd_args.log_level:
+        try:
+            LOG_LEVEL = getattr(logging, cmd_args.log_level.upper())
+        except AttributeError:
+            logger.setLevel(logging.WARNING)
+            logger.error("log-level must be one of: debug, info, warn or error")
+            sys.exit(1)
+    else:
+        LOG_LEVEL = DEFAULT_LOG_LEVEL
+
+    # configure the logger
+    logging.config.dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                "standard": {
+                    "format": DEFAULT_LOG_FORMAT,
+                },
+            },
+            "handlers": {
+                "default": {
+                    "level": LOG_LEVEL,
+                    "class": "logging.StreamHandler",
+                    "formatter": "standard",
+                },
+            },
+            "loggers": {
+                "": {"handlers": ["default"], "level": LOG_LEVEL, "propagate": True}
+            },
+        }
+    )
+
     main()

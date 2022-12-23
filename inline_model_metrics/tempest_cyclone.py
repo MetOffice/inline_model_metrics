@@ -601,7 +601,6 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         for f in files:
                             os.replace(f, os.path.join(outdir, "tidy",
                                                        os.path.basename(f)))
-            print('why not do this bit ',do_lastcycle)
             # archive track the files at the end of the run
             if do_lastcycle:
                 do_year = self._current_year_value
@@ -612,11 +611,11 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     f"_endrun*"
                 )
                 tracked_files = sorted(glob.glob(tracked_file_endrun))
-                print('last cycle, endrun ',tracked_files, tracked_file_endrun)
+                self.logger.debug(f"last cycle, endrun {tracked_files} {tracked_file_endrun}")
                 if len(tracked_files) > 0:
                     for f in tracked_files:
                         f_ending = f[-3:]
-                        print('file ending ',f_ending)
+                        self.logger.debug(f"file ending {f_ending}")
                         if f_ending in ["txt", ".nc"]:
                             with open(f + ".arch", "a"):
                                 os.utime(f + ".arch", None)

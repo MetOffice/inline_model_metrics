@@ -7,13 +7,13 @@ from datetime import datetime
 import glob
 import logging.config
 import os
-import subprocess
 import sys
 
 import cf_units
-import inline_model_metrics as imm
 import iris
 
+import inline_model_metrics as imm
+from inline_model_metrics.common import run_cmd
 
 DEFAULT_LOG_LEVEL = logging.WARNING
 DEFAULT_LOG_FORMAT = "%(levelname)s: %(message)s"
@@ -99,8 +99,8 @@ def latest_mass_file(suite, stream="p7"):
 
 
 def latest_local_file(suite, dirname):
-    cmd = "ls -l " + dirname + "/" + suite[2:] + "a.*.nc"
-    sts = run_cmd(cmd, check=True)
+    cmd = "ls -lrt " + dirname + "/" + suite[2:] + "a.*.nc"
+    sts = run_cmd(cmd, check=False)
     file_listing = str(sts.stdout).split("\n")
     file_list = []
     for f in file_listing:
@@ -137,33 +137,6 @@ def get_stash_constraint(stashcode):
     stash = st_pattern.format(stashcode[0:2], stashcode[2:])
     stash_con = iris.AttributeConstraint(STASH=stash)
     return stash_con
-
-
-def run_cmd(cmd, check=True):
-    """
-    Run the command 'cmd' in a shell.
-
-    :param str cmd: The command to run.
-    :param bool check: Raise an exception if there's a non-zero return code.
-    :rtype: subprocess.CompletedProcess
-    :return: The subprocess.run() return object
-    """
-    sts = subprocess.run(
-        cmd,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        universal_newlines=True,
-        check=check,
-    )
-    if sts.stderr:
-        if "Warning" in sts.stderr:
-            msg = f"Warning found in cmd output {sts.stderr}"
-            logger.warning(msg)
-        else:
-            msg = f"Error found in cat output {sts.stderr}"
-            raise RuntimeError(msg)
-    return sts
 
 
 def change_time_units(fout, fout_tmp1, fout_tmp2):

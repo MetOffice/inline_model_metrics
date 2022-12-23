@@ -1,7 +1,7 @@
 # (C) British Crown Copyright 2022, Met Office.
 # Please see LICENSE for license details.
 """
-Tests the tempest_tracker.TempestTracker Afterburner app
+Tests the inline_model_metrics.TempestExtremesCyclone Afterburner app
 """
 import os
 import shutil

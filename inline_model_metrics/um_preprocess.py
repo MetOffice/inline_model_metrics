@@ -294,7 +294,7 @@ class UMTempestPreprocess(TempestExtremesAbstract):
         longitude_size = cube.shape[-1]
         cube_resolution = longitude_size // 2
         input_resolution = int(self.resolution_code[1:-1])
-        print("input, real resol ",self.resolution_code, cube_resolution)
+        self.logger.debug(f"input, real resol {self.resolution_code} {cube_resolution}")
         if cube_resolution != input_resolution:
             msg = f"Resolution of input file {fname} not consistent with resolution " + \
                 "code {self.resolution_code}"
@@ -510,6 +510,6 @@ class UMTempestPreprocess(TempestExtremesAbstract):
         except:
             self.runid = self.suiteid
         self.resolution_code = os.environ["RESOL_ATM"]
-        print('resol in ',self.resolution_code)
+        self.logger.debug(f"resol in {self.resolution_code}")
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
         self.next_cycle = os.environ["NEXT_CYCLE"]

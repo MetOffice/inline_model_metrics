@@ -267,13 +267,19 @@ class FrontalIdentification(TempestExtremesAbstract):
 
             sts = subprocess.run(
                 cmd_frontid,
+                cwd=os.path.dirname(self.frontid_detect_script),
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 universal_newlines=True,
-                check=True,
             )
             self.logger.debug(sts.stdout)
+            if sts.returncode:  # non-zero return code
+                msg = f"Non-zero return code.\n" \
+                      f"stdout\n{sts.stdout}\n" \
+                      f"stderr\n{sts.stderr}"
+                self.logger.error(msg)
+                raise RuntimeError()
             if "EXCEPTION" in sts.stdout:
                 msg = (
                     f"EXCEPTION found in front detect output\n"
@@ -359,6 +365,7 @@ class FrontalIdentification(TempestExtremesAbstract):
 
             sts = subprocess.run(
                 cmd,
+                cwd=os.path.dirname(self.frontid_detect_script),
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

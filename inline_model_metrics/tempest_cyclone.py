@@ -132,12 +132,6 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     if _is_date_after(self.startdate, timestamp_previous):
                         continue
 
-                # find the relevant input data using the given file pattern
-                #fname = self._file_pattern_processed(ftimestamp_day+"*", "*", "psl",
-                #                           frequency=self.data_frequency)
-                #file_search = os.path.join(self.input_directory, fname)
-                #self.logger.debug(f"file_search {file_search}")
-
                 for regrid_resol in self.regrid_resolutions:
                     self.outdir = self.output_directory+'_'+regrid_resol
                     fname = self._file_pattern_processed(ftimestamp_day + "*", "*",

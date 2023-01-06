@@ -155,7 +155,7 @@ def get_environment_variables():
     explanation of the required environment variables is included in the
     documentation.
     """
-    global um_runid, um_suiteid, cylc_task_cycle_time, time_cycle, previous_cycle, tm2_cycle, next_cycle, startdate, enddate, current_year, current_month, current_day, period, cycleperiod, dir_out, dir_in, data_freq
+    global um_runid, um_suiteid, cylc_task_cycle_time, time_cycle, previous_cycle, tm2_cycle, next_cycle, startdate, enddate, current_year, current_month, current_day, period, cycleperiod, dir_out, data_freq
 
     # try:
     #    um_runid = os.environ["RUNID_OVERRIDE"]
@@ -173,9 +173,7 @@ def get_environment_variables():
     startdate = os.environ["STARTDATE"]
     enddate = os.environ["ENDDATE"]
     cycleperiod = os.environ["CYCLEPERIOD"]
-    dir_in = os.environ["DIR_IN"]
     dir_out = os.environ["DIR_OUT"]
-    logger.debug(f"dir_in {dir_in}")
     data_freq = int(os.environ["DATA_FREQ"])
 
     current_year = time_cycle[0:4]

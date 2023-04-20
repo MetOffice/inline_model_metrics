@@ -1,6 +1,6 @@
 # (C) British Crown Copyright 2022, Met Office.
 # Please see LICENSE for license details.
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 
 from inline_model_metrics.tempest_atmos_river import TempestExtremesAR

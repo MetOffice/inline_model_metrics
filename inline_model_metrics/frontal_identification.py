@@ -354,7 +354,12 @@ class FrontalIdentification(TempestExtremesAbstract):
         files_to_join = sorted(glob.glob(os.path.join(outdir,
                                                       "*fronts_raw_all_"+year+"????_*.nc")))
         if len(files_to_join) > 0:
+            if year+"0101" not in os.path.basename(files_to_join[0]):
+                msg = "No Jan file available "+os.path.basename(files_to_join[0])
+                raise RuntimeError(msg)
             file_year = files_to_join[0].replace(year+"0101", "year_"+year)
+            if os.path.exists(file_year):
+                os.remove(file_year)
             cmd_io = "{} {} ".format(self.frontid_Rexec,
                 os.path.join(os.path.dirname(self.frontid_detect_script),
                              "merge_fronts.R "))
@@ -377,8 +382,9 @@ class FrontalIdentification(TempestExtremesAbstract):
                 )
                 raise RuntimeError(msg)
             else:
-                for f in files_to_join:
-                    os.remove(f)
+                if os.path.exists(file_year):
+                    for f in files_to_join:
+                        os.remove(f)
 
     def _archive_fronts_data(self, outdir, is_new_year, year):
         """

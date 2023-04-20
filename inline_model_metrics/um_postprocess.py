@@ -55,6 +55,7 @@ class UMTempestPostprocess(TempestExtremesAbstract):
         """
         self._get_app_options()
         self._get_environment_variables()
+        self._get_environment_variables_local()
 
         output_dir_native = self.output_directory+'_native'
         if not os.path.exists(output_dir_native):
@@ -101,7 +102,7 @@ class UMTempestPostprocess(TempestExtremesAbstract):
             for var in self.variables_input:
                 fname = self._file_pattern(timestamp_tm2 + "*", "*", var,
                                        stream=self.um_stream, frequency="*")
-                file_name = os.path.join(self.input_directory, fname)
+                file_name = os.path.join(self.input_directory, self.ensemble, fname)
                 files_exist = glob.glob(file_name)
                 if len(files_exist) > 0:
                     for f in files_exist:
@@ -159,12 +160,30 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                     if os.path.isdir(self.backup_data_directory):
                         backup_data_path = os.path.join(self.backup_data_directory,
                                                     self.suiteid)
+                        if self.ensemble != "":
+                            backup_data_path = os.path.join(backup_data_path, self.ensemble)
                         if not os.path.exists(backup_data_path):
                                 os.makedirs(backup_data_path)
                         cmd = "cp " + fname + " " + backup_data_path
                         self.logger.debug(f"Archive cmd {cmd}")
+                        sts = subprocess.run(
+                            cmd,
+                            shell=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            universal_newlines=True
+                        )
+                        if sts.stderr:
+                            msg = (
+                                f"Error found in cmd {cmd} {sts.stderr} \n"
+                            )
+                            raise RuntimeError(msg)
+                        else:
+                            if os.path.exists(os.path.join(backup_data_path, fname)):
+                                os.remove(fname)
+                                os.remove(fname+'.arch')
                     else:
-                        self.logger.debug(f"Archive directory does not exist " + \
+                        self.logger.debug(f"Backup archive directory does not exist " + \
                                           f"{self.backup_data_directory}")
                     raise RuntimeError(msg)
 
@@ -211,9 +230,14 @@ class UMTempestPostprocess(TempestExtremesAbstract):
         except:
             self.backup_data_directory = ""
 
+    def _get_environment_variables_local(self):
+        """
+        Get the required environment variables from the suite. A list and
+        explanation of the required environment variables is included in the
+        documentation.
+        """
         try:
-            self.ensemble = eval(self.app_config.get_property("common",
-                                                            "ensemble"))
+            self.ensemble = os.environ["ENS"]
         except:
             self.ensemble = ""
 
@@ -221,22 +245,3 @@ class UMTempestPostprocess(TempestExtremesAbstract):
             self.moo_dir = 'moose:/crum/{}'
         else:
             self.moo_dir = 'moose:/ens/{}/{}'
-
-    # def _get_environment_variables(self):
-    #     """
-    #     Get the required environment variables from the suite. A list and
-    #     explanation of the required environment variables is included in the
-    #     documentation.
-    #     """
-    #     try:
-    #         self.suiteid = os.environ["SUITEID_OVERRIDE"]
-    #     except:
-    #         self.suiteid = os.environ["CYLC_SUITE_NAME"]
-    #     self.runid = self.suiteid.split('-')[1]
-    #     self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
-    #     self.next_cycle = os.environ["NEXT_CYCLE"]
-    #     self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
-    #     self.tm2_cycle = os.environ["TM2_CYCLE"]
-    #     self.ncodir = os.environ["NCODIR"]
-    #     self.is_last_cycle = os.environ["IS_LAST_CYCLE"]
-    #     self.inline_tracking = os.environ["INLINE_TRACKING"]

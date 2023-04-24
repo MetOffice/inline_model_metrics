@@ -80,8 +80,10 @@ class UMTempestPreprocess(TempestExtremesAbstract):
         # initialise variables that might not get set if no detection step
         self.outdir = self.output_directory + "_" + "native"
 
-        # find out what the psl variable is for the input data
+        # find out what the psl (or pr for mcs) variable is for the input data
         if self.variables_rename[0] == "psl":
+            psl_input_var = self.variables_input[0]
+        elif self.variables_rename[0] == "pr":
             psl_input_var = self.variables_input[0]
         else:
             psl_input_var = "psl"
@@ -96,6 +98,8 @@ class UMTempestPreprocess(TempestExtremesAbstract):
 
         condition = self._set_tracking_date(timestamp_day)
         if condition == "AlreadyComplete":
+            self.logger.debug(f"This step already completed ,"
+            f"{self.cylc_task_cycle_time}")
             return
 
         # this section of code processes data from the current timestep
@@ -371,7 +375,7 @@ class UMTempestPreprocess(TempestExtremesAbstract):
             fin_path = os.path.join(self.input_directory, filename)
             file_search = glob.glob(fin_path)
             if len(file_search) != 1:
-                msg = f"Unable to find expected input file {input_path}"
+                msg = f"Unable to find expected input file {fin_path}"
                 self.logger.error(msg)
                 raise RuntimeError(msg)
             else:

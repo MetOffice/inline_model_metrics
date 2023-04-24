@@ -8,3 +8,4 @@ from inline_model_metrics.tempest_cyclone import TempestExtremesCyclone
 from inline_model_metrics.um_preprocess import UMTempestPreprocess
 from inline_model_metrics.um_postprocess import UMTempestPostprocess
 from inline_model_metrics.frontal_identification import FrontalIdentification
+from inline_model_metrics.tempest_mcs import TempestExtremesMCS

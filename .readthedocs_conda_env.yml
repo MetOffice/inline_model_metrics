@@ -2,7 +2,7 @@ name: inline-model-metrics
 
 channels:
   - conda-forge
-
+  - nodefaults
 dependencies:
   - python=3.8
   - metoffice-afterburner

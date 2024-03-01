@@ -307,11 +307,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         for step in ["detect", "stitch", "profile", "detectblobs", "nodefilefilter"]:
             try:
                 step_config = self.app_config.section_to_dict(f"{track_type}_{step}")
-                #step_arguments = [
-                #    f"--{parameter} {step_config[parameter]}"
-                #    for parameter in sorted(list(step_config.keys()))
-                #    if step_config[parameter]
-                #]
                 step_arguments = []
                 for parameter in sorted(list(step_config.keys())):
                     if step_config[parameter]:
@@ -334,8 +329,11 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                             elif "out_fmt" in parameter:
                                 fmt_value["profile"] = step_config[parameter]
 
-                        step_arguments.append(f"--{parameter} {param_value}")
-
+                        if "regional" in parameter:
+                            if step_config[parameter]:
+                                step_arguments.append(f"--{parameter} ")
+                        else:
+                            step_arguments.append(f"--{parameter} {param_value}")
 
                 commands[step] = " ".join(step_arguments)
                 self.logger.debug(f"step, commands {step} {commands[step]}")
@@ -345,8 +343,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             # set up the column names of the track output file, to be used for
             # naming the storm keys
             if step == "stitch" and commands[step] is not None:
-                #col_names = column_initial + step_config["in_fmt"].strip('\"') +\
-                #            column_final
                 col_names = column_initial + fmt_value["stitch"].strip('\"') +\
                             column_final
                 self.column_names[track_type+"_stitch"] = {}
@@ -354,8 +350,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                 for im, name in enumerate(names):
                     self.column_names[track_type+"_"+step][name] = im
             if step == "profile" and commands[step] is not None:
-                #col_names = column_initial + step_config["out_fmt"].strip('\"') +\
-                #            column_final
                 col_names = column_initial + fmt_value["profile"].strip('\"') +\
                             column_final
                 self.column_names[track_type+"_profile"] = {}

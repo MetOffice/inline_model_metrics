@@ -137,7 +137,7 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                     self.logger.debug(f"File is zero length, no archive {fname}")
                     return
 
-                cmd = "moo put -F " + fname + " " + moo_path + "/" + mass_stream
+                cmd = "moo put " + fname + " " + moo_path + "/" + mass_stream
                 self.logger.debug(f"Archive cmd {cmd}")
                 sts = subprocess.run(
                     cmd,
@@ -164,28 +164,37 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                             backup_data_path = os.path.join(backup_data_path, self.ensemble)
                         if not os.path.exists(backup_data_path):
                                 os.makedirs(backup_data_path)
+                            
                         cmd = "cp " + fname + " " + backup_data_path
                         self.logger.debug(f"Archive cmd {cmd}")
-                        sts = subprocess.run(
-                            cmd,
-                            shell=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            universal_newlines=True
-                        )
-                        if sts.stderr:
-                            msg = (
-                                f"Error found in cmd {cmd} {sts.stderr} \n"
+                        if not os.path.exists(os.path.join(backup_data_path, os.path.basename(fname))):
+                            sts = subprocess.run(
+                                cmd,
+                                shell=True,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                universal_newlines=True
                             )
-                            raise RuntimeError(msg)
+                            if sts.stderr:
+                                msg = (
+                                    f"Error found in cmd {cmd} {sts.stderr} \n"
+                                )
+                                raise RuntimeError(msg)
+                            else:
+                                if os.path.exists(os.path.join(backup_data_path, fname)):
+                                    os.remove(fname)
+                                    os.remove(fname+".arch")
                         else:
-                            if os.path.exists(os.path.join(backup_data_path, fname)):
-                                os.remove(fname)
-                                os.remove(fname+'.arch')
+                            self.logger.debug(f"File already exists " + \
+                                    f"{os.path.join(backup_data_path, os.path.basename(fname))}")
+                            msg = "Did not copy, file already exists."
+                            raise RuntimeError(msg)
+
                     else:
                         self.logger.debug(f"Backup archive directory does not exist " + \
                                           f"{self.backup_data_directory}")
-                    raise RuntimeError(msg)
+                        msg = "No backup directory"
+                        raise RuntimeError(msg)
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""

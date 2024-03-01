@@ -143,21 +143,13 @@ class FrontalIdentification(TempestExtremesAbstract):
                             self.processed_files[ftimestamp_day]["ta_850"]
                         self.variable_units = variable_units
 
-                        # run TempestExtremes detect blobs
+                        # run the frontal detection
                         candidate_file = self._run_detect_fronts(ftimestamp_day)
-
-                        # process the AR netcdf files
-                        #self._process_fronts_for_archive(candidate_file)
 
                         # if this timestep has worked OK, then need to remove
                         # the dot_file
                         self._remove_dot_track_file(ftimestamp_day, ftimestamp_endday,
                                                     dot_file=dot_file)
-
-                        # at this point, I can delete the processed input data
-                        #if self.delete_processed:
-                        #    self._tidy_data_files(timestamp_previous, timestamp_day,
-                        #                          self.variables_rename)
 
                     else:
                         self.logger.debug(f"no files to process for timestamp "

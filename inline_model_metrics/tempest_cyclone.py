@@ -360,13 +360,13 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         outdir,
                         self._archived_files_dir,
                         f"{self.runid}_{trackname}_"
-                        f"{date_start}_{timestamp_next}_"
+                        f"{date_start}_{timestamp_current}_"
                         f"{track_type}_endrun.txt"
                     )
                     tracked_file_last = os.path.join(
                         outdir,
-                        f"{self.runid}_{trackname}_{timestamp_previous}_"
-                        f"{timestamp_current}_{track_type}_adjust_f.txt"
+                        f"{self.runid}_{trackname}_{date_end}_"
+                        f"{timestamp_previous}_{track_type}_adjust_f.txt"
                     )
                     if os.path.exists(tracked_file_last):
                         files.extend([tracked_file_last])

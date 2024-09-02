@@ -31,9 +31,15 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         self.frequency = None
         self.cmd_detect_type = {}
         self.cmd_stitch_type = {}
+        self.cmd_detectblobs_type = {}
+        self.cmd_stitchblobs_type = {}
+        self.cmd_blobstats_type = {}
         self.cmd_edit_type = {}
+        self.cmd_varproc_type = {}
         self.cmd_detect = None
         self.cmd_detectblobs = None
+        self.cmd_stitchblobs = None
+        self.cmd_blobstats = None
         self.cmd_stitch = None
         self.cmd_edit = None
         self.source_files = {}
@@ -50,8 +56,10 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         self.variables_rename = []
         self.outputcmd_detect_default = ""
         self.in_fmt_stitch_default = ""
-        self.out_fmt_profile1_default = ""
-        self.out_fmt_profile2_default = ""
+        self.outputcmd_detect_default1 = ""
+        self.in_fmt_stitch_default1 = ""
+        self.out_fmt_nodeedit1_default = ""
+        self.out_fmt_nodeedit2_default = ""
 
     @abstractmethod
     def run(self, *args, **kwargs):
@@ -288,9 +296,9 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         """
         Read the TempestExtreme command line parameters from the configuration.
         :param str track_type: The name of the type of tracking to run, possible
-            values: detect, stitch, profile
-        :returns: A dictionary with keys of `detect`, `stitch`, `profile`,
-            `detectblobs`, `nodefilefilter` and the values for each of these is
+            values: detect, stitch, nodeedit
+        :returns: A dictionary with keys of `detect`, `stitch`, `nodeedit`,
+            `detectblobs`, `nodefilefilter` `varproc1`, `varproc2`, and the values for each of these is
             a string containing the command line parameters for each of these
             TempestExtreme steps. The parameters are sorted into alphabetical
             order in each line.
@@ -304,32 +312,46 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
 
         commands = {}
         fmt_value = {}
-        for step in ["detect", "stitch", "profile", "detectblobs", "nodefilefilter"]:
+        for step in ["detect", "stitch", "nodeedit", "detectblobs", "nodefilefilter", "varproc1", "varproc2", "stitchblobs", "blobstats"]:
             try:
                 step_config = self.app_config.section_to_dict(f"{track_type}_{step}")
                 step_arguments = []
                 for parameter in sorted(list(step_config.keys())):
+                    print('step_config ',step, step_config, parameter)
                     if step_config[parameter]:
-                        if "_default" in step_config[parameter]:
+                        if "_default1" in step_config[parameter]:
                             if "outputcmd" in step_config[parameter]:
-                                param_value = self.outputcmd_detect_default
+                                param_value = self.outputcmd_detect_default1
                             elif "in_fmt_stitch" in step_config[parameter]:
-                                param_value = self.in_fmt_stitch_default
-                                fmt_value['stitch'] = self.in_fmt_stitch_default
-                            elif "out_fmt_profile1" in step_config[parameter]:
-                                param_value = self.out_fmt_profile1_default
-                                fmt_value['profile'] = self.out_fmt_profile1_default
-                            elif "out_fmt_profile2" in step_config[parameter]:
-                                param_value = self.out_fmt_profile2_default
-                                fmt_value['profile'] = self.out_fmt_profile2_default
+                                param_value = self.in_fmt_stitch_default1
+                                fmt_value['stitch'] = self.in_fmt_stitch_default1
+                            elif "out_fmt_nodeedit1" in step_config[parameter]:
+                                param_value = self.out_fmt_nodeedit1_default
+                                fmt_value['nodeedit'] = self.out_fmt_nodeedit1_default
+                            elif "out_fmt_nodeedit2" in step_config[parameter]:
+                                param_value = self.out_fmt_nodeedit2_default
+                                fmt_value['nodeedit'] = self.out_fmt_nodeedit2_default
+                        elif "_default2" in step_config[parameter]:
+                            if "outputcmd" in step_config[parameter]:
+                                param_value = self.outputcmd_detect_default2
+                            elif "in_fmt_stitch" in step_config[parameter]:
+                                param_value = self.in_fmt_stitch_default2
+                                fmt_value['stitch'] = self.in_fmt_stitch_default2
+                        elif "_default3" in step_config[parameter]:
+                            if "out_fmt_nodeedit" in step_config[parameter]:
+                                param_value = self.out_fmt_nodeedit_default3
+                                fmt_value['nodeedit'] = self.out_fmt_nodeedit_default3
+                            elif "in_fmt_nodeedit" in step_config[parameter]:
+                                param_value = self.in_fmt_nodeedit_default3
                         else:
                             param_value = step_config[parameter]
                             if "in_fmt" in parameter:
                                 fmt_value["stitch"] = step_config[parameter]
                             elif "out_fmt" in parameter:
-                                fmt_value["profile"] = step_config[parameter]
+                                fmt_value["nodeedit"] = step_config[parameter]
 
-                        if "regional" in parameter:
+                        # arguments that take no values
+                        if "regional" in parameter or "tagonly" in parameter or "findblobs" in parameter or "out_headers" in parameter or "out_fulltime" in parameter:
                             if step_config[parameter]:
                                 step_arguments.append(f"--{parameter} ")
                         else:
@@ -349,15 +371,36 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                 names = col_names.split(',')
                 for im, name in enumerate(names):
                     self.column_names[track_type+"_"+step][name] = im
-            if step == "profile" and commands[step] is not None:
-                col_names = column_initial + fmt_value["profile"].strip('\"') +\
+            if step == "nodeedit" and commands[step] is not None:
+                col_names = column_initial + fmt_value["nodeedit"].strip('\"') +\
                             column_final
-                self.column_names[track_type+"_profile"] = {}
+                self.column_names[track_type+"_nodeedit"] = {}
                 names = col_names.split(',')
                 for im, name in enumerate(names):
                     self.column_names[track_type+"_"+step][name] = im
 
         return commands
+
+    def _command_parameter(self, track_type, command, argument):
+        """
+        Read the TempestExtreme command line parameters from the configuration,
+        and return the requested value of the argument for the given command.
+        :param str track_type: The name of the type of tracking to run, possible
+            values: detect, stitch, nodeedit
+        :param str command: The name of the TempestExtremes command (as 
+            defined in the input namelist
+        :param str track_type: The name of the argument
+        :returns: The parameter value of the given argument.
+        :rtype: str
+        """
+
+        step = command
+        step_config = self.app_config.section_to_dict(f"{track_type}_{step}")
+        if argument in sorted(list(step_config.keys())):
+            value = step_config[argument]
+        else:
+            value = None
+        return value
 
     def _check_time_coord(self, fnames):
         """
@@ -514,14 +557,18 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             eval(self.app_config.get_property("common", "regrid_resolutions"))
         self.data_frequency = self.app_config.get_property("common",
                                                             "data_frequency")
-        self.outputcmd_detect_default = self.app_config.get_property("common",
-                                                            "outputcmd_detect_default")
-        self.in_fmt_stitch_default = self.app_config.get_property("common",
-                                                            "in_fmt_stitch_default")
-        self.out_fmt_profile1_default = self.app_config.get_property("common",
-                                                            "out_fmt_profile1_default")
-        self.out_fmt_profile2_default = self.app_config.get_property("common",
-                                                            "out_fmt_profile2_default")
+        self.outputcmd_detect_default1 = self.app_config.get_property("common",
+                                                            "outputcmd_detect_default1")
+        self.outputcmd_detect_default2 = self.app_config.get_property("common",
+                                                            "outputcmd_detect_default2")
+        self.in_fmt_stitch_default1 = self.app_config.get_property("common",
+                                                            "in_fmt_stitch_default1")
+        self.in_fmt_stitch_default2 = self.app_config.get_property("common",
+                                                            "in_fmt_stitch_default2")
+        self.in_fmt_nodeedit_default3 = self.app_config.get_property("common",
+                                                            "in_fmt_nodeedit_default3")
+        self.out_fmt_nodeedit_default3 = self.app_config.get_property("common",
+                                                            "out_fmt_nodeedit_default3")
 
     def _get_environment_variables(self):
         """

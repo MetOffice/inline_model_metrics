@@ -16,7 +16,7 @@ def extract_version():
     """
     version = ""
     directory = os.path.dirname(__file__)
-    filename = os.path.join(directory, "inline_model_metrics", "__init__.py")
+    filename = os.path.join(directory, "inline_model_storms", "__init__.py")
 
     with open(filename) as fd:
         for line in fd:
@@ -36,19 +36,19 @@ def extract_version():
 
 
 setuptools.setup(
-    name="inline_model_metrics",
-    packages=["inline_model_metrics"],
+    name="inline_model_storms",
+    packages=["inline_model_storms"],
     version=extract_version(),
     license="BSD 3-Clause License",
     description=(
-        "inline_model_metrics is a package to to run model metrics inline with a climate model."
+        "inline_model_storms is a package to to run model storms inline with a climate model."
     ),
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     author="Met Office",
     author_email="jon.seddon@metoffice.gov.uk",
-    url="https://github.com/MetOffice/inline_model_metrics",
-    download_url="https://github.com/MetOffice/inline_model_metrics/releases",
+    url="https://github.com/MetOffice/inline_model_storms",
+    download_url="https://github.com/MetOffice/inline_model_storms/releases",
     keywords=["climate", "tracking", "inline"],
     install_requires=[
         "metoffice-afterburner",

@@ -1,11 +1,11 @@
 # How to contribute
 
 ## Raise Issues:  
-Report bugs and request enhancements by raising an issue in the `inline_model_metrics` issues section.
+Report bugs and request enhancements by raising an issue in the `inline_model_storms` issues section.
 If reporting an issue, try to include information on how to reproduce the bug/error.
 
 ## Contribute Code
-All contributions to `inline_model_metrics` are made via merges with the main branch.  
+All contributions to `inline_model_storms` are made via merges with the main branch.  
 New contributors should add their details to the "code contributors" section of this document as part of their first request.  
 The developer who reviews each pull request is responsible for checking that the contributor's name is listed in this
 file before merging the changes into master branch.
@@ -33,5 +33,5 @@ file before merging the changes into master branch.
  * If I become aware of anything that would make any of the above inaccurate, in any way, I will let the UK Met Office know as
  soon as I become aware.  
  
- (The `inline_model_metrics` Contributor Licence Agreement and Certificate of Origin is inspired by the Certificate of Origin
+ (The `inline_model_storms` Contributor Licence Agreement and Certificate of Origin is inspired by the Certificate of Origin
  used by Enyo and the Linux Kernel.)

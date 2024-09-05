@@ -110,6 +110,8 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         self.logger.debug(f"next_cycle {self.next_cycle}")
         self.logger.debug(f"is_last_cycle {self.is_last_cycle}")
         self.logger.debug(f"inline_tracking {self.inline_tracking}")
+        self.logger.debug(f"track_by_year {self.track_by_year}")
+        self.logger.debug(f"track_at_end {self.track_at_end}")
 
         if self.inline_tracking == "True":
             self.logger.debug(f"running inline {self.inline_tracking}")

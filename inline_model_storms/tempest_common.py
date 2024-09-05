@@ -256,8 +256,8 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             #        date_start=timestart,
             #        variable=varname
             #    )
-        self.logger.info(f"fname from pattern {fname} {stream} {timestart} "
-                        f"{timeend} {varname}")
+        #self.logger.info(f"fname from pattern {fname} {stream} {timestart} "
+        #                f"{timeend} {varname}")
         return fname.strip('"')
 
     def _file_pattern_processed(self, timestart, timeend, varname,
@@ -513,7 +513,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                                                        self.data_frequency)
             output_path = os.path.join(self.outdir, output_path)
 
-            self.logger.debug(f"read file {output_path}")
+            #self.logger.debug(f"read file {output_path}")
             if os.path.exists(output_path):
                 processed_filenames[var_name] = output_path
                 cube = iris.load_cube(output_path)
@@ -599,14 +599,24 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         self.time_cycle = os.environ["TIME_CYCLE"]
         self.tm2_cycle = os.environ["TM2_CYCLE"]
         self.tp2_cycle = os.environ["TP2_CYCLE"]
-        self.track_by_year = os.environ["TRACK_BY_YEAR"]
-        self.track_at_end = os.environ["TRACK_AT_END"]
-
+        track_by_year = os.environ["TRACK_BY_YEAR"]
+        track_at_end = os.environ["TRACK_AT_END"]
         is_last_cycle = os.environ["IS_LAST_CYCLE"]
+
         if is_last_cycle == "true":
             self.is_last_cycle = True
         else:
             self.is_last_cycle = False
+
+        if "T" in track_by_year or "t" in track_by_year:
+            self.track_by_year = True
+        else:
+            self.track_by_year = False
+
+        if "T" in track_at_end or "t" in track_at_end:
+            self.track_at_end = True
+        else:
+            self.track_at_end = False
 
 def _is_date_after(timetest, timeref):
     """

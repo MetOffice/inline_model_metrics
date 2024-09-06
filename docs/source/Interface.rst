@@ -112,8 +112,8 @@ These are defined in the rose-suite.conf, with example values:
 +----------------------------+------------------------------------------------------------+
 | Name                       | Description                                                |
 +============================+============================================================+
-| AFTERBURNER_HOME_DIR='/data/users/afterburner/software/turbofan/v1.3.3'                 |
-|                      | Path to the Afterburner code to "run" the configuration          |
+| AFTERBURNER_HOME_DIR       |'/data/users/afterburner/software/turbofan/v1.3.3'          |
+|                            | Path to the Afterburner code to "run" the configuration    |
 +----------------------------+------------------------------------------------------------+
 | BACKUP_DIR='/data/users/$USER/tracking/syclops'
 |                      | Path to the backup directory if MASS is not used or not available|
@@ -242,7 +242,7 @@ standard UM suites):
 +----------------------+------------------------------------------------------+
 | Name                 | Description                                          |
 +======================+======================================================+
-| DATAM                | The data output working directory                    |
+| DATAM                | The data output working directory (not used here)    |
 +----------------------+------------------------------------------------------+
 
 Input variables in `common`

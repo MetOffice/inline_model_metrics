@@ -287,8 +287,8 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             variable=varname
         )
 
-        self.logger.info(f"fname from _file_pattern_processed {fname} {timestart} " + \
-                         "{timeend} {varname}")
+        #self.logger.info(f"fname from _file_pattern_processed {fname} {timestart} " + \
+        #                 "{timeend} {varname}")
         return fname.strip('"')
 
     def _construct_command(self, track_type):
@@ -426,7 +426,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                 self.logger.debug(f"cmd {cmd}")
                 subprocess.call(cmd, shell=True)
 
-    def _identify_processed_files(self, time_start, time_end, grid_resol="native"):
+    def _identify_processed_files(self, time_start, time_end, grid_resol="native", variables=None):
         """
         Identify the processed input files to be used by tracking.
         The files have pseudo-CMIP6 filenames, using the processed variable names
@@ -443,6 +443,9 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         processed_filenames = {}
         variable_units = {}
 
+        if variables is None:
+            variables = self.variables_rename
+
         # Identify the grid and orography file
         processed_filenames["orog"] = os.path.join(
             self.outdir, "orography.nc"
@@ -454,7 +457,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             raise Exception("Processed file directory does not exist, should come "\
                     "from pre-processing " + self.outdir)
 
-        for var_name in self.variables_rename:
+        for var_name in variables:
             # identify the processed path filename similar to CMIP6 naming,
             # will be standard regardless of the input filename structure
             # varname_new, freq, time,

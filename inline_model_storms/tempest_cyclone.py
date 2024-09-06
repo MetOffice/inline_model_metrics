@@ -928,8 +928,11 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 timestamp_end = os.path.basename(det).split('_')[2].split('-')[1]
 
                 processed_files, variable_units = \
-                        self._identify_processed_files(timestamp_start, timestamp_end,
-                                           grid_resol=grid_resol)
+                        self._identify_processed_files(
+                            timestamp_start,
+                            timestamp_end,
+                            grid_resol=grid_resol,
+                            variables=self.nodeedit_vars)
                 self.logger.info(f"processed_files {processed_files}")
 
                 for var in self.nodeedit_vars:
@@ -1112,8 +1115,11 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 timefilter = self.data_frequency
 
             processed_files_curr, variable_units_curr = \
-                            self._identify_processed_files(timestamp, timestamp_next,
-                            grid_resol=grid_resol)
+                    self._identify_processed_files(
+                        timestamp,
+                        timestamp_next,
+                        grid_resol=grid_resol,
+                        variables=self.detectblobs_vars)
             self.logger.info(f"processed_files_curr {processed_files_curr}")
             processed_files_in = []
             for var in self.detectblobs_vars:

@@ -115,124 +115,126 @@ These are defined in the rose-suite.conf, with example values:
 | AFTERBURNER_HOME_DIR       |'/data/users/afterburner/software/turbofan/v1.3.3'          |
 |                            | Path to the Afterburner code to "run" the configuration    |
 +----------------------------+------------------------------------------------------------+
-| BACKUP_DIR='/data/users/$USER/tracking/syclops'                                         |
-|                      | Path to the backup directory if MASS is not used or not available|
+| BACKUP_DIR                 | '/data/users/$USER/tracking/syclops'                       |
+|                            | Path to the backup directory if MASS is not used or not    |
+|                            | available                                                  |
 +----------------------------+------------------------------------------------------------+
-| CDO_CONDA_PATH='/home/h06/hadom/.conda/envs/cdo'                                        |
-|                      | Path to CDO installation as some cdo commands are used           |
+| CDO_CONDA_PATH             | '/home/h06/hadom/.conda/envs/cdo'                          |
+|                            | Path to CDO installation as some cdo commands are used     |
 +----------------------------+------------------------------------------------------------+
-| DATAM='History_Data' | Not used                                                         |      
+| DATAM='History_Data'       | Not used                                                   |      
 +----------------------------+------------------------------------------------------------+
-| DATA_FREQ_STRING='6h'| The frequency of the input data (3h, 6h typically used)          |
+| DATA_FREQ_STRING='6h'      | The frequency of the input data (3h, 6h typically used)    |
 +----------------------------+------------------------------------------------------------+
-| DELETE_PROCESSED=True| Logical to delete the processed input data when no longer needed |
+| DELETE_PROCESSED=True      | Logical to delete the processed input data when no longer  |
+|                            | needed                                                     |
 +----------------------------+------------------------------------------------------------+ 
-| DELETE_SOURCE=True   | Logical to delete source data when no longer needed              |
+| DELETE_SOURCE=True         | Logical to delete source data when no longer needed        |
 +----------------------------+------------------------------------------------------------+
-| DIR_OUT='/scratch/$USER/syclops_tracking'                                               |
-|                      | The output base directory path                                   |
+| DIR_OUT                    | '/scratch/$USER/syclops_tracking'                          |
+|                            | The output base directory path                             |
 +----------------------------+------------------------------------------------------------+
-| EXPT_BASIS='18510101T0000Z'                                                             |
-|                      | The start date for the tracking                                  |
+| EXPT_BASIS='18510101T0000Z'|  The start date for the tracking                           |
 +----------------------------+------------------------------------------------------------+ 
-| EXPT_CALENDAR='360day'                                                                  |
-|                      | Calendar for cycling mode (not related to data calendar)         |
+| EXPT_CALENDAR='360day'     | Calendar for cycling mode (not related to data calendar)   |
 +----------------------------+------------------------------------------------------------+
-| EXPT_HORIZ_ATM='n96e'| The resolution of the data (name also needs to match the         |
-|                      | orography file                                                   |
+| EXPT_HORIZ_ATM='n96e'      | The resolution of the data (name also needs to match the   |
+|                            | orography file                                             |
 +----------------------------+------------------------------------------------------------+
-| EXPT_RESUB='P1M'     | The cycling frequency (chunks of data are assumed to be retrieved|
-|                      | at this frequency)                                               |
+| EXPT_RESUB='P1M'           | The cycling frequency (chunks of data are assumed to be    |
+|                            | retrieved at this frequency)                               |
 +----------------------------+------------------------------------------------------------+
-| EXPT_RUNLEN='P20Y0M' | Period of time to run tracking for                               |
+| EXPT_RUNLEN='P20Y0M'       | Period of time to run tracking for                         |
 +----------------------------+------------------------------------------------------------+
-| FILE_PATTERN_PROCESSED="{variable}_{frequency}_{runid}_{date_start}-{date_end}.nc"      |
-|                      | The file naming pattern for the processed files used as input to |
-|                      | TempestExtremes                                                  |
+| FILE_PATTERN_PROCESSED     | "{variable}_{frequency}_{runid}_{date_start}-{date_end}.nc"|
+|                            | The file naming pattern for the processed files used as    |
+|                            | input to TempestExtremes                                   |
 +----------------------------+------------------------------------------------------------+
-| FRONTAL_DIR='/data/users/hadom/branches/git/front_id_private'                           |
-|                      | Path to the frontal detection code                               |
+| FRONTAL_DIR                | '/data/users/hadom/branches/git/front_id_private'          |
+|                            | Path to the frontal detection code                         |
 +----------------------------+------------------------------------------------------------+
-| INLINE_MODEL_STORMS_PATH='/data/users/hadom/branches/git/inline_model_storms'           |
-|                      | Path to the code for the storm tracking                          |
+| INLINE_MODEL_STORMS_PATH   | '/data/users/hadom/branches/git/inline_model_storms'       |
+|                            | Path to the code for the storm tracking                    |
 +----------------------------+------------------------------------------------------------+
-| INLINE_TRACKING=false| Logical, for tracking within a model suite rather than separately|
+| INLINE_TRACKING=false      | Logical, for tracking within a model suite rather than     |
+|                            | separately                                                 |
 +----------------------------+------------------------------------------------------------+
-| INPUT_DATA_FROM_MASS=true                                                               |
-|                      | Logical, original data will come from the MASS archive (turns on |
-|                      | app to retrieve data                                             |
+| INPUT_DATA_FROM_MASS=true  | Logical, original data will come from the MASS archive     |
+|                            | (turns on app to retrieve data                             |
 +----------------------------+------------------------------------------------------------+
-| INPUT_FILE_PATTERN="{runid}a.{stream}{date_start}_{variable}.nc"                        |
-|                      | File naming pattern for input data (from MASS or elsewhere,      |
-|                      |converted to netcdf                                               |
+| INPUT_FILE_PATTERN         | "{runid}a.{stream}{date_start}_{variable}.nc"              |
+|                            | File naming pattern for input data (from MASS or elsewhere,|
+|                            | converted to netcdf                                        |
 +----------------------------+------------------------------------------------------------+
-| LAT_VAR='latitude'   | Name of latitude coordinate in input files to TempestExtremes    |
+| LAT_VAR='latitude'         | Name of latitude coordinate in input files to              |
+|                            |TempestExtremes                                             |
 +----------------------------+------------------------------------------------------------+
-| LON_VAR='longitude'  | Name of longitude coordinate in input files to TempestExtremes   |
+| LON_VAR='longitude'        | Name of longitude coordinate in input files to             |
+|                            |TempestExtremes                                             |
 +----------------------------+------------------------------------------------------------+
-| METO_MOOSE_PROJECT_USE=false                                                            |
-|                      | Not used currently                                               |
+| METO_MOOSE_PROJECT_USE     | false                                                      |
+|                            | Not used currently                                         |
 +----------------------------+------------------------------------------------------------+
-| OROGRAPHY_DIR='/cray_hpc/data_xcs/d05/hadom/tempest_extremes_datafiles'                 |
-|                      | Path to orography data files                                     |
+| OROGRAPHY_DIR              | '/cray_hpc/data_xcs/d05/hadom/tempest_extremes_datafiles'  |
+|                            | Path to orography data files                               |
 +----------------------------+------------------------------------------------------------+
-| R_LIBRARIES='/home/h06/hadom/R/x86_64-pc-linux-gnu-library/3.6'                         |
-|                      | Path to R libraries for frontal detection code                   |
+| R_LIBRARIES                | '/home/h06/hadom/R/x86_64-pc-linux-gnu-library/3.6'        |
+|                            | Path to R libraries for frontal detection code             |
 +----------------------------+------------------------------------------------------------+
-| REGRID_RESOLUTIONS=["native"]                                                           |
-|                      | List, resolutions to do tracking on, anything other than native  |
-|                      | will cause regridding (currently other resolutions defined as    | 
-|                      | nxxe and string found in orography directory                     |
+| REGRID_RESOLUTIONS         | ["native"]                                                 |
+|                            | List, resolutions to do tracking on, anything other than   |
+|                            | native will cause regridding (currently other resolutions  | 
+|                            | defined as nxxe and string found in orography directory    |
 +----------------------------+------------------------------------------------------------+
-| ROTATED=False        | not used                                                         |
+| ROTATED=False              | not used                                                   |
 +----------------------------+------------------------------------------------------------+
-| RUNID=true           | Not used, leave as true                                          |
+| RUNID=true                 | Not used, leave as true                                    |
 +----------------------------+------------------------------------------------------------+
-| SCITOOLS_MODULE='scitools/production-os46-3'                                            |
-|                      | Environment module to use for iris etc                           |
+| SCITOOLS_MODULE            | 'scitools/production-os46-3'                               |
+|                            | Environment module to use for iris etc                     |
 +----------------------------+------------------------------------------------------------+
-| SITE='meto_spice'    | Location used in site/ for resources, queues etc                 |
+| SITE='meto_spice'          | Location used in site/ for resources, queues etc           |
 +----------------------------+------------------------------------------------------------+
-| SUITEID_OVERRIDE='u-cy163'                                                              |
-|                      | Suite name for input data                                        |
+| SUITEID_OVERRIDE='u-cy163' | Suite name for input data                                  |
 +----------------------------+------------------------------------------------------------+
-| TASK_ARCH_LOG=true   | Archive cyc log files                                            |
+| TASK_ARCH_LOG=true         | Archive cyc log files                                      |
 +----------------------------+------------------------------------------------------------+
-| TASK_ID_FRONT=true   | Logical flag do frontal detection                                |
+| TASK_ID_FRONT=true         | Logical flag do frontal detection                          |
 +----------------------------+------------------------------------------------------------+
-| TASK_RUN=false       | Not used                                                         |
+| TASK_RUN=false             | Not used                                                   |
 +----------------------------+------------------------------------------------------------+
-| TASK_TE_AR=true      | Logical flag to do atmospheric river detection                   |
+| TASK_TE_AR=true            | Logical flag to do atmospheric river detection             |
 +----------------------------+------------------------------------------------------------+
-| TASK_TE_CYCLONE=true | Logical flag to do cyclone detection                             |
+| TASK_TE_CYCLONE=true       | Logical flag to do cyclone detection                       |
 +----------------------------+------------------------------------------------------------+
-| TEMPEST_DIR='/data/users/hadom/branches/git/tempestextremes_v2.2.2/bin'                 |
-|                      | Path to TempestExtremes code binaries                            |
+| TEMPEST_DIR                | '/data/users/hadom/branches/git/tempestextremes_v2.2.2/bin'|
+|                            | Path to TempestExtremes code binaries                      |
 +----------------------------+------------------------------------------------------------+
-| TEMPEST_HELPER_PATH='/home/h03/ucc/software/tempest_helper'                             |
-|                      | Path to helper scripts                                           |
+| TEMPEST_HELPER_PATH        | '/home/h03/ucc/software/tempest_helper'                    |
+|                            | Path to helper scripts                                     |
 +----------------------------+------------------------------------------------------------+
-| TRACK_BY_YEAR=True   | Track each year of data (Dec[year-1] to end Dec[current year],   |
-|                      | i.e. 13 months if possible, so that tracks across the New Year   |
-|                      | can be included. Code exists to stitch years together afterwards |
+| TRACK_BY_YEAR=True         | Track each year of data (Dec[year-1] to end                |
+|                            | Dec[current year], i.e. 13 months if possible, so that     |
+|                            | tracks across the New Year can be included. Code exists to |
+|                            | stitch years together afterwards                           |
 +----------------------------+------------------------------------------------------------+
-| TRACK_AT_END=False   | Run tracking at end of time period, i.e. over whole period       |
-|                      | Warning: can be a lot of data, and take a lot of time            |
+| TRACK_AT_END=False         | Run tracking at end of time period, i.e. over whole period |
+|                            | Warning: can be a lot of data, and take a lot of time      |
 +----------------------------+------------------------------------------------------------+
-| UM_ARCHIVE_TO_MASS=True                                                                 |
-|                      | Archive the outputs from the tracking to MASS (if not possible,  |
-|                      | copied to BACKUP_DIR instead                                     |
+| UM_ARCHIVE_TO_MASS=True    | Archive the outputs from the tracking to MASS (if not      |
+|                            | possible, copied to BACKUP_DIR instead                     |
 +----------------------------+------------------------------------------------------------+
-| VARIABLES_INPUT=["psl", "uas", "vas", ...etc]                                           |
-|                      | List of variables in input datasets required                     | 
+| VARIABLES_INPUT            | ["psl", "uas", "vas", ...etc]                              |
+|                            | List of variables in input datasets required               | 
 +----------------------------+------------------------------------------------------------+
-| VARIABLES_RENAME=["psl", "uas", "vas", ...etc]                                          |
-|                      | Variables produced from preprocessing, names as used in          |
-|                      | TemestExtremes namelists, order corresponds to VARIABLES_INPUT   |
+| VARIABLES_RENAME           | ["psl", "uas", "vas", ...etc]                              |
+|                            | Variables produced from preprocessing, names as used in    |
+|                            | TemestExtremes namelists, order corresponds to             |
+|                            | VARIABLES_INPUT                                            |
 +----------------------------+------------------------------------------------------------+
-| MPLBACKEND=Agg       | The matplotlib backend (when DISPLAY is not defined)             |
+| MPLBACKEND=Agg             | The matplotlib backend (when DISPLAY is not defined)       |
 +----------------------------+------------------------------------------------------------+
-| NCODIR               | The directory path to nco                                        |
+| NCODIR                     | The directory path to nco                                  |
 +----------------------------+------------------------------------------------------------+
 
 In the default configuration, the following environment variable is used in
@@ -348,25 +350,33 @@ tracking by retrieving these files from the archive and running the tracking on 
 
 Tracking occurs at the end of each year, and/or over all files available, depending on choices.
 
-+---------------------------------------------------------+---------------------------------------------------------------------------------+
-| Name                                                    | Description                                                                     |
-+=========================================================+=================================================================================+
-| {runid}_detect_{time_start}-{time_end}_{data_frequency}_{track_type}.txt               | The file generated by the TempestExtremes DetectNodes command                   |
-+---------------------------------------------------------+---------------------------------------------------------------------------------+
-| {runid}_detectblobs_{time_start}-{time_end}_{data_frequency}_{track_type}.txt               | The file generated by the TempestExtremes DetectBlobs command              |
-+---------------------------------------------------------+---------------------------------------------------------------------------------+
-| {runid}_track_{time_start}-{time_end}_{data_frequency}_{track_type}.{csv,gfdl}             | The tracked file generated by the TempestExtremes StitchNodes. The format can be csv, gfdl                     |
-+---------------------------------------------------------+---------------------------------------------------------------------------------+
-| {runid}_track_{time_start}-{time_end}_{data_frequency}_{track_type}_nogaps.{csv,nc}             | The tracked file generated by the TempestExtremes StitchNodes and converted to netcdf. The format can be csv, nc. Here any gaps in the storms have been linearly filled in                |
-+---------------------------------------------------------+---------------------------------------------------------------------------------+
-| {runid}_tracknodeedit_{time_start}-{time_end}_{data_frequency}_{track_type}.csv             | The tracked file generated by the TempestExtremes StitchNodes and processed by NodeFileEditor. The format can be csv.      |
-+---------------------------------------------------------+---------------------------------------------------------------------------------+
-| {runid}_tracknodeedit_{time_start}-{time_end}_{data_frequency}_{track_type}.{csv,nc}             | The tracked file generated by the TempestExtremes StitchNodes and processed by NodeFileEditor. The format can be csv, gfdl. Here any gaps in the storms have been linearly filled in                    |
-+---------------------------------------------------------+---------------------------------------------------------------------------------+
-| {runid}_trackblobs_{time_start}-{time_end}_{data_frequency}_{track_type}.nc             | The tracked file generated by the TempestExtremes StitchBlobs. The format can be nc.                   |
-+---------------------------------------------------------+---------------------------------------------------------------------------------+
-| {runid}_blobstats_{time_start}-{time_end}_{data_frequency}_{track_type}.txt             | The generated by the TempestExtremes BlobStats. The format can be txt.                   |
-+---------------------------------------------------------+---------------------------------------------------------------------------------+
++-------------------------------------------------------------------------------------+----------------------------------------------------------------+
+| Name                                                                                | Description                                                    |
++=========================================================+============================================================================================+
+| {runid}_detect_{time_start}-{time_end}_{data_frequency}_{track_type}.txt            | The file generated by the TempestExtremes DetectNodes command  |
++---------------------------------------------------------+--------------------------------------------------------------------------------------------+
+| {runid}_detectblobs_{time_start}-{time_end}_{data_frequency}_{track_type}.txt       | The file generated by the TempestExtremes DetectBlobs command  |
++---------------------------------------------------------+--------------------------------------------------------------------------------------------+
+| {runid}_track_{time_start}-{time_end}_{data_frequency}_{track_type}.{csv,gfdl}      | The tracked file generated by the TempestExtremes StitchNodes. |
+|                                                                                     | The format can be csv, gfdl                                    |
++---------------------------------------------------------+--------------------------------------------------------------------------------------------+
+| {runid}_track_{time_start}-{time_end}_{data_frequency}_{track_type}_nogaps.{csv,nc} | The tracked file generated by the TempestExtremes StitchNodes  |
+|                                                                                     | and converted to netcdf. The format can be csv, nc. Here any   |
+|                                                                                     | gaps in the storms have been linearly filled in                |
++---------------------------------------------------------+--------------------------------------------------------------------------------------------+
+| {runid}_tracknodeedit_{time_start}-{time_end}_{data_frequency}_{track_type}.csv     | The tracked file generated by the TempestExtremes StitchNodes  |
+|                                                                                     | and processed by NodeFileEditor. The format can be csv.        |
++---------------------------------------------------------+--------------------------------------------------------------------------------------------+
+| {runid}_tracknodeedit_{time_start}-{time_end}_{data_frequency}_{track_type}.{csv,nc}| The tracked file generated by the TempestExtremes StitchNodes  |
+|                                                                                     | and processed by NodeFileEditor. The format can be csv, gfdl.  |
+|                                                                                     |Here any gaps in the storms have been linearly filled in        |
++---------------------------------------------------------+--------------------------------------------------------------------------------------------+
+| {runid}_trackblobs_{time_start}-{time_end}_{data_frequency}_{track_type}.nc         | The tracked file generated by the TempestExtremes StitchBlobs. |
+|                                                                                     | The format can be nc.                                          |
++---------------------------------------------------------+--------------------------------------------------------------------------------------------+
+| {runid}_blobstats_{time_start}-{time_end}_{data_frequency}_{track_type}.txt         | The generated by the TempestExtremes BlobStats. The format     |
+|                                                                                     | can be txt.                                                    |
++---------------------------------------------------------+--------------------------------------------------------------------------------------------+
 
 
 The following files are generated from tempest_atmosriver:

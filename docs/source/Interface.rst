@@ -115,7 +115,7 @@ These are defined in the rose-suite.conf, with example values:
 | AFTERBURNER_HOME_DIR       |'/data/users/afterburner/software/turbofan/v1.3.3'          |
 |                            | Path to the Afterburner code to "run" the configuration    |
 +----------------------------+------------------------------------------------------------+
-| BACKUP_DIR='/data/users/$USER/tracking/syclops'
+| BACKUP_DIR='/data/users/$USER/tracking/syclops'                                         |
 |                      | Path to the backup directory if MASS is not used or not available|
 +----------------------------+------------------------------------------------------------+
 | CDO_CONDA_PATH='/home/h06/hadom/.conda/envs/cdo'                                        |
@@ -130,7 +130,7 @@ These are defined in the rose-suite.conf, with example values:
 | DELETE_SOURCE=True   | Logical to delete source data when no longer needed              |
 +----------------------------+------------------------------------------------------------+
 | DIR_OUT='/scratch/$USER/syclops_tracking'                                               |
-|                      | The output base directory path
+|                      | The output base directory path                                   |
 +----------------------------+------------------------------------------------------------+
 | EXPT_BASIS='18510101T0000Z'                                                             |
 |                      | The start date for the tracking                                  |
@@ -254,8 +254,7 @@ not defined by the environment above:
 +--------------------------+--------------------------------------------------------+
 | Name                     | Description                                            |
 +==========================+========================================================+
-| detectblobs_vars=["vorcyc_850", "ua_925", "va_925"]                               |
-|                          | Variables needed by the detectblobs step               |
+| detectblobs_vars         | "" List. Variables needed by the detectblobs step      |
 +--------------------------+--------------------------------------------------------+
 | in_fmt_stitch_default1   | The default1 variables (and names) input to the        |
 |                          | stitch step. Using a default means that the same       |

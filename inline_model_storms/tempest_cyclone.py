@@ -99,6 +99,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         timestamp_next = self.next_cycle[:8]
         startdate = self.startdate[:8]
         enddate = self.enddate[:8]
+        timestamp_tm2 = self.tm2_cycle[:8]
         end_of_year = False
         if timestamp_current[:4] != timestamp_next[:4]:
             end_of_year = True
@@ -108,6 +109,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         self.logger.debug(f"lastcycle {self.lastcycle}")
         self.logger.debug(f"previous_cycle {self.previous_cycle}")
         self.logger.debug(f"next_cycle {self.next_cycle}")
+        self.logger.debug(f"tm2_cycle {timestamp_tm2}")
         self.logger.debug(f"is_last_cycle {self.is_last_cycle}")
         self.logger.debug(f"inline_tracking {self.inline_tracking}")
         self.logger.debug(f"track_by_year {self.track_by_year}")
@@ -189,7 +191,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 timestamp_next)
 
             self._tidy_files(self.outdir,
-                             self.tm2_cycle[:8],
+                             timestamp_tm2[:8],
                              self.previous_cycle[:8])
 
     def _run_tracking_and_editing(
@@ -365,7 +367,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                                 with open(f_archive, "a"):
                                     os.utime(f_archive, None)
 
-    def _tidy_files(self, outdir, timestamp_previous, timestamp_tm2):
+    def _tidy_files(self, outdir, timestamp_tm2, timestamp_previous):
         """
         Find all files that will not be needed on next step, and remove them
 
@@ -393,6 +395,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 variables_to_delete.remove(var)
         else:
             variables_to_delete = self.variables_rename.copy()
+
         self._tidy_data_files(timestamp_tm2,
                               timestamp_previous, variables_to_delete)
 

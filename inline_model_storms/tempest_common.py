@@ -191,14 +191,13 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         """
         self.logger.info(f"Tidy up input files")
         files_remove = []
-        #source_files, processed_files = self._generate_file_names(timestamp,
-        #                                                          timestamp_end)
 
         if f_remove == 'processed':
             for var in var_list:
                 f = self._file_pattern_processed(timestamp, timestamp_end, var,
                                                  frequency=self.data_frequency)
                 if os.path.exists(os.path.join(self.outdir, f)):
+                    self.logger.info(f"Deleting {os.path.join(self.outdir, f)}")
                     os.remove(os.path.join(self.outdir, f))
 
     def _tidy_track_files(
@@ -426,54 +425,6 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                 cmd = "mv " + fname + ".nc3" + " " + fname
                 self.logger.debug(f"cmd {cmd}")
                 subprocess.call(cmd, shell=True)
-
-    def _generate_file_names(self, time_start, time_end):
-        """
-        Generate a list of input and output filenames.
-
-        :param str time_start: The timestep of the start of the data period to process
-        :param str time_end: The timestep of the end of the data period to process
-        :returns: A dictionary of the files found for this period and a string
-            containing the period between samples in the input data.
-        :rtype: dict
-        """
-        source_filenames = {}
-        processed_filenames = {}
-
-        variables_required = {}
-        # these variables need to have a new var_name, either because the default
-        # from the UM is confusing or unknown, and these names are needed for the
-        # variable name inputs for the TempestExtremes scripts
-        for var in self.variables_input:
-            variables_required[var] = {'fname': var}
-            if var in self.variables_rename:
-                variables_required[var].update({'varname_new': var})
-
-        for var in self.variables_input:
-            filename = self._file_pattern(self.time_range.split('-')[0],
-                                          self.time_range.split('-')[1],
-                                          variables_required[var]["fname"],
-                                          um_stream='pt')
-
-            input_path = os.path.join(self.input_directory, filename)
-
-            # make the output path filename similar to CMIP6 naming, will be standard
-            # regardless of the input filename structure
-            # varname_new, freq, time
-            var_name = var
-            if "varname_new" in variables_required[var]:
-                var_name = variables_required[var]["varname_new"]
-            output_path = self._file_pattern_processed(time_start,
-                                                       time_end,
-                                                       var_name,
-                                                       self.frequency)
-
-            output_path = os.path.join(self.outdir, output_path)
-
-            source_filenames[var] = input_path
-            processed_filenames[var] = output_path
-
-        return source_filenames, processed_filenames
 
     def _identify_processed_files(self, time_start, time_end, grid_resol="native"):
         """

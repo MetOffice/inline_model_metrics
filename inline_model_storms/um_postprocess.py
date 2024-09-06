@@ -96,16 +96,20 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                 if not self.is_last_cycle == "true":
                     if self.track_at_end:
                         # if we're tracking at end, we may need to retain all nodeedit files
+                        # this deletion is done in tempest_cyclone
                         pass
                     #self._tidy_data_files(timestamp_tm2,
                     #        timestamp_previous, self.variables_rename)
 
         # delete source data if required
+        self.logger.info(f"delete source {self.delete_source}")
         if self.delete_source:
             for var in self.variables_input:
                 fname = self._file_pattern(timestamp_tm2 + "*", "*", var,
                                        stream=self.um_stream, frequency="*")
+                
                 file_name = os.path.join(self.input_directory, self.ensemble, fname)
+                self.logger.info(f"deleting source file_name {file_name}")
                 files_exist = glob.glob(file_name)
                 if len(files_exist) > 0:
                     for f in files_exist:

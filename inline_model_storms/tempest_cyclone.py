@@ -452,9 +452,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         if sdate >= startdate and edate <= enddate:
                             detects.append(d)
                     n_months_expected = self._diff_month(datetime(int(enddate[:4]), int(enddate[4:6]), int(enddate[6:])), datetime(int(startdate[:4]), int(startdate[4:6]), int(startdate[6:])))
-                    print('n_months_expected ',n_months_expected)
-                    print('len(detects) ',len(detects))
-                    print('detects ',detects)
+                    self.logger.debug(f"n_months_expected {n_months_expected}, len(detects) {len(detects)}")
                 else:
                     detects = detects_all
             else:
@@ -563,9 +561,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                         if sdate >= startdate and edate <= enddate:
                             blobs.append(d)
                     n_months_expected = self._diff_month(datetime(int(enddate[:4]), int(enddate[4:6]), int(enddate[6:])), datetime(int(startdate[:4]), int(startdate[4:6]), int(startdate[6:])))
-                    print('n_months_expected ',n_months_expected)
-                    print('len(blobs) ',len(blobs))
-                    print('blobs ',blobs)
+                    self.logger.debug(f"n_months_expected {n_months_expected}, len(blobs) {len(blobs)}")
                 else:
                     blobs = blobs_all
             else:

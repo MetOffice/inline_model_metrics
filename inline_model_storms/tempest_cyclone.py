@@ -458,6 +458,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     self.logger.debug(f"n_months_expected {n_months_expected}, len(detects) {len(detects)}")
                 else:
                     detects = detects_all
+            # track_by_year
             else:
                 # Find candidates for this year
                 detectfile_search = self.file_format.format(
@@ -471,6 +472,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     track_type=track_type)
                 self.logger.debug(f"detects_thisyear_search {detectfile_search}")
                 detects_thisyear = sorted(glob.glob(detectfile_search))
+                first_month = int(os.path.basename(detects_thisyear[0]).split("_")[2].split("-")[0][4:6])
                 last_month = int(os.path.basename(detects_thisyear[-1]).split("_")[2].split("-")[0][4:6])
 
                 detectfile_search = self.file_format.format(
@@ -491,12 +493,18 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     detects1 = detects_prev_dec + detects_thisyear
                     detects = detects1
 
+                if year == self.startdate[:4]:
+                    # this is the first year, so may not have 12 months
+                    expected_months = int(timestamp[4:6]) - int(self.startdate[4:6]) + 1
+                else:
+                    expected_months = int(timestamp[4:6])
+
                 # want to check that we have the right number of files
-                n_files_expected = last_month + len(detects_prev_dec)
+                n_files_expected = expected_months + len(detects_prev_dec)
 
                 # if this is not the last cycle, then need at least 12 months
-                if not is_lastcycle and len(detects) < 12:
-                    raise Exception("Not correct number of detects for full year "+len(detects))
+                if not is_lastcycle and len(detects) < n_files_expected:
+                    raise Exception("Not correct number of detects for full year "+str(len(detects)))
 
                 if n_files_expected != len(detects):
                     self.logger.debug(f"detects {detects}, len(detects) {len(detects)}, n_files_expected {n_files_expected}")
@@ -579,6 +587,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     data_freq=timefilter, 
                     track_type=track_type)
                 blobs_thisyear = sorted(glob.glob(blobs_search))
+                first_month = int(os.path.basename(blobs_thisyear[0]).split("_")[2].split("-")[0][4:6])
                 last_month = int(os.path.basename(blobs_thisyear[-1]).split("_")[2].split("-")[0][4:6])
 
                 blobs_search = self.file_format_nc.format(
@@ -599,15 +608,21 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     blobs1 = blobs_prev_dec + blobs_thisyear
                     blobs = blobs1
 
-                # want to check that we have the right number of files
-                n_files_expected = last_month + len(blobs_prev_dec)
+                if year == self.startdate[:4]:
+                    # this is the first year, so may not have 12 months
+                    expected_months = int(timestamp[4:6]) - int(self.startdate[4:6]) + 1
+                else:
+                    expected_months = int(timestamp[4:6])
 
-                if not is_lastcycle and len(blobs) < 12:
-                    raise Exception("Not correct number of blobs for full year "+len(blobs))
+                # want to check that we have the right number of files
+                n_files_expected = expected_months + len(blobs_prev_dec)
+
+                if not is_lastcycle and len(blobs) < n_files_expected:
+                    raise Exception("Not correct number of blobs for full year "+str(len(blobs)))
 
                 if n_files_expected != len(blobs):
                     self.logger.debug(f"blobs {blobs}, len(blobs) {len(blobs)}, n_files_expected {n_files_expected}")
-                    raise Exception("Not correct number of blobs for this period "+len(blobs))
+                    raise Exception("Not correct number of blobs for this period "+str(len(blobs)))
             if len(blobs) == 0:
                 raise Exception("No detectblobs files found "+track_type)
 

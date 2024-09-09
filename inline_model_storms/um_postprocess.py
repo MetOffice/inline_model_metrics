@@ -154,13 +154,21 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                     continue
 
                 archive_error = False
-                # the .arch is in the archive_dir, but the file is in 
+                # the .arch is in the archive_dir, but the file may be in 
                 # the directory above
                 fname = os.path.join(os.path.dirname(
                     fname_arch), '../', 
                     os.path.basename(fname_arch)[:-5])
+
                 if not os.path.exists(fname):
-                    self.logger.debug(f"File does not exist for archiving {fname}")
+                    fname1 = os.path.join(os.path.dirname(
+                        fname_arch), 
+                        os.path.basename(fname_arch)[:-5])
+                    
+                    if not os.path.exists(fname1):
+                        self.logger.debug(f"File does not exist for archiving {fname} {fname1}")
+                    else:
+                        fname = fname1
 
                 if fname[-2:] == "nc":
                     mass_stream = "any.nc.file"
@@ -186,7 +194,8 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                     archive_error = True
                 else:
                     #os.remove(fname)
-                    os.rename(fname_arch, fname_archived)
+                    if 'archive' not in os.path.dirname(fname):
+                        os.rename(fname_arch, fname_archived)
                 self.logger.debug(sts.stdout)
 
                 if archive_error:

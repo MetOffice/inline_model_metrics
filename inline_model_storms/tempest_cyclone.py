@@ -384,9 +384,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
         nodeedit_included = False
         for track_type in self.track_types:
             tracking_phase_commands = self._construct_command(track_type)["nodeedit"]
-            if tracking_phase_commands is None:
-                continue
-            else:
+            if tracking_phase_commands is not None:
                 nodeedit_included = True
 
         if nodeedit_included:
@@ -398,6 +396,8 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
 
         self._tidy_data_files(timestamp_tm2,
                               timestamp_previous, variables_to_delete)
+
+        
 
     def _diff_month(self, d1, d2):
         return (d1.year - d2.year) * 12 + d1.month - d2.month

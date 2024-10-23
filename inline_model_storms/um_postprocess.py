@@ -95,11 +95,19 @@ class UMTempestPostprocess(TempestExtremesAbstract):
             if self.delete_processed:
                 if not self.is_last_cycle == "true":
                     if self.track_at_end:
-                        # if we're tracking at end, we may need to retain all nodeedit files
+                        # if we're tracking at end, we may need to retain 
+                        # all nodeedit files
                         # this deletion is done in tempest_cyclone
                         pass
-                    #self._tidy_data_files(timestamp_tm2,
-                    #        timestamp_previous, self.variables_rename)
+                    else:
+                        # here we can delete all processed data that 
+                        # is over 2 years old
+                        yearm2_tm2 = str(int(timestamp_tm2[:4])-2)
+                        yearm2_prev = str(int(timestamp_previous[:4])-2)
+                        timestamp_tm2_yearm2 = yearm2_tm2+timestamp_tm2[4:]
+                        timestamp_prev_yearm2 = yearm2_prev+timestamp_previous[4:]
+                        self._tidy_data_files(timestamp_tm2_yearm2,
+                            timestamp_prev_yearm2, self.variables_rename)
 
         # delete source data if required
         self.logger.info(f"delete source {self.delete_source}")

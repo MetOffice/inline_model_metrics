@@ -162,7 +162,7 @@ def get_trajectories_csv(tracked_file, nc_file, time_period, column_names):
     for pos in coords_position:
         columns_variable.remove(pos)
 
-    storms_csv['ISOTIME'] = pd.to_datetime(dict(year=storms_csv.year, month=storms_csv.month, day=storms_csv.day,hour=storms_csv.hour))
+    #storms_csv['ISOTIME'] = pd.to_datetime(dict(year=storms_csv.year, month=storms_csv.month, day=storms_csv.day,hour=storms_csv.hour))
     try:
         storms_csv['TID'] = storms_csv['track_id']
     except:

@@ -395,7 +395,8 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
             variables_to_delete = self.variables_rename.copy()
 
         self._tidy_data_files(timestamp_tm2,
-                              timestamp_previous, variables_to_delete)
+                              timestamp_previous, variables_to_delete,
+                              f_remove=self.delete_processed)
 
         
 

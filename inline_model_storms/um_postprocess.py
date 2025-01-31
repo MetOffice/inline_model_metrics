@@ -186,7 +186,7 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                     self.logger.debug(f"File is zero length, no archive {fname}")
                     return
 
-                cmd = "moo put " + fname + " " + moo_path + "/" + mass_stream
+                cmd = "moo put -F " + fname + " " + moo_path + "/" + mass_stream
                 self.logger.debug(f"Archive cmd {cmd}")
                 sts = subprocess.run(
                     cmd,
@@ -231,6 +231,7 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                             self.logger.debug(f"File already exists " + \
                                     f"{os.path.join(backup_data_path, os.path.basename(fname))}")
                             msg = "Did not copy, file already exists."
+                            os.rename(fname_arch, fname_archived)
 
                     else:
                         self.logger.debug(f"Backup archive directory does not exist " + \

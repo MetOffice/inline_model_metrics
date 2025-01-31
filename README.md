@@ -1,12 +1,38 @@
-# inline_model_metrics
-A Met Office tenten project Rose app to run model metrics inline with a climate model.
+# inline_model_storms
+A Met Office tenten project Rose app to run model storms inline (or postprocess) with a climate model.
 
-Documentation is available from: https://inline-model-metrics.readthedocs.io/
+Documentation is available from: https://inline-model-storms.readthedocs.io/
 
-The code consists of a preprocessor (currently specific to the UM output) which takes the input data from a source (model, reanalysis etc) and produces variables and filename suitable for use by the inline codes. 
+The code consists of:
 
-There are initially two components of the inline tracking, tempest_cyclone and tempest_atmos_river. Tempest_cyclone uses the cyclone-tracking capability of TempestExtremes, which tempest_atmos_river uses TempestExtremes to track atmospheric rivers.
+  within inline_model_storms:
 
-Other inline metrics code can be included here, will required changes to the pre-processing to provide the required input files/variables.
+    tempest_common.py - common code used by other parts of package
 
-Currently the code saves and archives tracked output to the Met Office MASS storage. This needs to be split out into a postprocessor code to be more generic.
+    tempest_cyclone.py - code to execute parts of the TempestExtremes detection and tracking code
+
+    tempest_atmos_river.py - code to execute the TempestExtremes atmospheric river detection
+
+    um_preprocess.py - code to preprocess the data obtained from the data archive, to format it for TempestExtremes using the namelists given in the suite apps
+
+    um_postprocess - code for postprocessing, data archiving and tidying up
+
+    load_trajectories.py - code to load the files produced by TempestExtremes
+
+    save_trajectories.py - code to save the tracked files as netcdf
+
+    trajectory_manipulations.py - routines to manipulate the tracks produced
+
+together with a rose/cylc suite containing apps:
+
+  tempest_get_data - suite-specific code to get data from Met Office MASS archive, including STASH codes etc within the file/ directory.
+
+  tempest_preprocess - namelists to preprocess the data after getting it, to make it compatible with TempestExtremes with regards to variable names etc
+
+  tempest_tracker - namelists to run various components of TempestExtremes with given input parameters
+
+  tempest_atmosriver - namelists to run atmospheric river identification
+
+  tempest_postprocess - namelists to run the postprocessing (data archiving, tidying up)
+
+Currently the code saves and archives tracked output to the Met Office MASS storage. This code would need altering for other platforms.

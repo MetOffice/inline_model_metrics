@@ -7,6 +7,10 @@ import shutil
 import subprocess
 import sys
 
+##
+# Processed data: If there is a nodeedit step: if there is tracking at end, then need to keep all nodeedit_vars files; if not then can delete. But if tracking every year, then need to keep Dec (yr-1): Dec (yr) files, but can delete earlier ones. 
+# if there is no nodeedit step, can delete as usual. 
+
 #from afterburner.apps import AbstractApp
 
 from .tempest_common import (TempestExtremesAbstract)
@@ -79,10 +83,6 @@ class UMTempestPostprocess(TempestExtremesAbstract):
         timestamp_tm2 = self.tm2_cycle[:8]
 
         # Check whether the cylc date is after the most recent post-processed file
-        condition = self._get_tracking_date(timestamp_day)
-        if condition == "AlreadyComplete":
-            return
-
         # this section of code processes data from the current timestep
         current_time = timestamp_day
 
@@ -94,15 +94,30 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                                                         self._archived_files_dir))
             if self.delete_processed:
                 if not self.is_last_cycle == "true":
-                    self._tidy_data_files(timestamp_tm2,
-                            timestamp_previous, self.variables_rename)
+                    if self.track_at_end:
+                        # if we're tracking at end, we may need to retain 
+                        # all nodeedit files
+                        # this deletion is done in tempest_cyclone
+                        pass
+                    else:
+                        # here we can delete all processed data that 
+                        # is over 2 years old
+                        yearm2_tm2 = str(int(timestamp_tm2[:4])-2)
+                        yearm2_prev = str(int(timestamp_previous[:4])-2)
+                        timestamp_tm2_yearm2 = yearm2_tm2+timestamp_tm2[4:]
+                        timestamp_prev_yearm2 = yearm2_prev+timestamp_previous[4:]
+                        self._tidy_data_files(timestamp_tm2_yearm2,
+                            timestamp_prev_yearm2, self.variables_rename)
 
         # delete source data if required
+        self.logger.info(f"delete source {self.delete_source}")
         if self.delete_source:
             for var in self.variables_input:
                 fname = self._file_pattern(timestamp_tm2 + "*", "*", var,
                                        stream=self.um_stream, frequency="*")
+                
                 file_name = os.path.join(self.input_directory, self.ensemble, fname)
+                self.logger.info(f"deleting source file_name {file_name}")
                 files_exist = glob.glob(file_name)
                 if len(files_exist) > 0:
                     for f in files_exist:
@@ -118,8 +133,22 @@ class UMTempestPostprocess(TempestExtremesAbstract):
         :param str archive_directory: The directory to look for any .arch files
         """
 
+        backup_data_path = os.path.join(
+            self.backup_data_directory,
+            self.suiteid, 
+            self.data_frequency)
+        if self.ensemble != "":
+            backup_data_path = os.path.join(
+                backup_data_path, 
+                self.ensemble)
+        if not os.path.exists(backup_data_path):
+            os.makedirs(backup_data_path)
+
         #moosedir = "moose:/crum/{}/{}/"
-        archive_files = glob.glob(os.path.join(archive_directory, "*.arch"))
+        self.logger.info(f"Use archive files from {archive_directory}")
+        archive_search = os.path.join(archive_directory, "*.arch")
+        self.logger.info(f"Use archive_search {archive_search}")
+        archive_files = glob.glob(archive_search)
         if len(archive_files) > 0:
             if self.ensemble == "":
                 moo_path = self.moo_dir.format(self.suiteid)
@@ -127,8 +156,28 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                 moo_path = self.moo_dir.format(self.suiteid, self.ensemble)
 
             for fname_arch in archive_files:
+                fname_archived = fname_arch.replace(".arch", ".archived")
+                # do not try and archive a file already done
+                if os.path.exists(fname_archived):
+                    continue
+
                 archive_error = False
-                fname = fname_arch[:-5]
+                # the .arch is in the archive_dir, but the file may be in 
+                # the directory above
+                fname = os.path.join(os.path.dirname(
+                    fname_arch), '../', 
+                    os.path.basename(fname_arch)[:-5])
+
+                if not os.path.exists(fname):
+                    fname1 = os.path.join(os.path.dirname(
+                        fname_arch), 
+                        os.path.basename(fname_arch)[:-5])
+                    
+                    if not os.path.exists(fname1):
+                        self.logger.debug(f"File does not exist for archiving {fname} {fname1}")
+                    else:
+                        fname = fname1
+
                 if fname[-2:] == "nc":
                     mass_stream = "any.nc.file"
                 else:
@@ -137,7 +186,7 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                     self.logger.debug(f"File is zero length, no archive {fname}")
                     return
 
-                cmd = "moo put " + fname + " " + moo_path + "/" + mass_stream
+                cmd = "moo put -F " + fname + " " + moo_path + "/" + mass_stream
                 self.logger.debug(f"Archive cmd {cmd}")
                 sts = subprocess.run(
                     cmd,
@@ -152,18 +201,13 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                     )
                     archive_error = True
                 else:
-                    os.remove(fname)
-                    os.remove(fname_arch)
+                    #os.remove(fname)
+                    if 'archive' not in os.path.dirname(fname):
+                        os.rename(fname_arch, fname_archived)
                 self.logger.debug(sts.stdout)
 
                 if archive_error:
                     if os.path.isdir(self.backup_data_directory):
-                        backup_data_path = os.path.join(self.backup_data_directory,
-                                                    self.suiteid)
-                        if self.ensemble != "":
-                            backup_data_path = os.path.join(backup_data_path, self.ensemble)
-                        if not os.path.exists(backup_data_path):
-                                os.makedirs(backup_data_path)
                             
                         cmd = "cp " + fname + " " + backup_data_path
                         self.logger.debug(f"Archive cmd {cmd}")
@@ -182,13 +226,12 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                                 raise RuntimeError(msg)
                             else:
                                 if os.path.exists(os.path.join(backup_data_path, fname)):
-                                    os.remove(fname)
-                                    os.remove(fname+".arch")
+                                    os.rename(fname_arch, fname_archived)
                         else:
                             self.logger.debug(f"File already exists " + \
                                     f"{os.path.join(backup_data_path, os.path.basename(fname))}")
                             msg = "Did not copy, file already exists."
-                            raise RuntimeError(msg)
+                            os.rename(fname_arch, fname_archived)
 
                     else:
                         self.logger.debug(f"Backup archive directory does not exist " + \

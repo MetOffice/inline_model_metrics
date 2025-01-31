@@ -120,71 +120,6 @@ class UMTempestPreprocess(TempestExtremesAbstract):
                                               psl_input_var, grid_resol=regrid_resol)
                 #self._produce_derived_diagnostics(source_files, processed_files)
 
-    # def _file_pattern(self, timestart, timeend, varname,
-    #                   frequency="6h", stream="pt"):
-    #     """
-    #     Derive the input nc filenames from the file pattern, assuming a
-    #     um model filenaming pattern as here, or could be other patterns
-    #     for other models/platforms (which would need to be added)
-    #
-    #     :param str timestart: The timestep of the start of the data period to process
-    #     :param str timeend: The timestep of the end of the data period to process
-    #     :param str um_stream: The name of the um output stream (output file
-    #     :                     identification)
-    #     :param str frequency: The frequency of the input data (in hours, needs to
-    #     :                     include "h"), used to determine file naming
-    #     :returns: a filename given the inputs to the pattern
-    #     :rtype: str
-    #     """
-    #     if self.frequency is None:
-    #         file_freq = frequency
-    #     else:
-    #         file_freq = str(self.frequency)+"h"
-    #
-    #     if self.input_file_pattern != '':
-    #         # file format based on input pattern
-    #         fname = self.input_file_pattern.format(
-    #             runid=self.runid,
-    #             frequency=file_freq,
-    #             date_start=timestart,
-    #             date_end=timeend,
-    #             variable=varname,
-    #             stream=stream
-    #         )
-    #     self.logger.info(f"fname from _file_pattern {fname} {self.um_stream} {timestart}" +\
-    #                     f" {timeend} {varname}")
-    #     return fname.strip('"')
-    #
-    # def _file_pattern_processed(self, timestart, timeend, varname,
-    #                   frequency="6h"):
-    #     """
-    #     For processed files, we know what the filenames look like, so
-    #     search specifically
-    #
-    #     :param str timestart: The timestep of the start of the data period to process
-    #     :param str timeend: The timestep of the end of the data period to process
-    #     :param str frequency: The frequency of the input data (in hours, needs to
-    #     :                     include "h"), used to determine file naming
-    #     :returns: a filename given the inputs to the pattern
-    #     :rtype: str
-    #     """
-    #     if self.frequency is None:
-    #         file_freq = frequency
-    #     else:
-    #         file_freq = str(self.frequency)+"h"
-    #
-    #     fname = self.file_pattern_processed.format(
-    #         runid=self.runid,
-    #         frequency=file_freq,
-    #         date_start=timestart,
-    #         date_end=timeend,
-    #         variable=varname
-    #     )
-    #
-    #     self.logger.info(f"fname from _file_pattern_processed {fname} {timestart} " + \
-    #                      "{timeend} {varname}")
-    #     return fname.strip('"')
-
     def _generate_data_files(self, timestamp, timestamp_end,
                              psl_var, grid_resol="native"):
         """
@@ -468,7 +403,6 @@ class UMTempestPreprocess(TempestExtremesAbstract):
             fname_ua_850 = processed_filenames["ua_850"]
             fname_sf_850 = fname_ua_850.replace("ua_850", "sf_850")
             iris.save(sf, fname_sf_850)
-
 
     def _get_app_options(self):
         """Get commonly used configuration items from the config file"""

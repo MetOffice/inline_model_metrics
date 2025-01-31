@@ -31,9 +31,15 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         self.frequency = None
         self.cmd_detect_type = {}
         self.cmd_stitch_type = {}
+        self.cmd_detectblobs_type = {}
+        self.cmd_stitchblobs_type = {}
+        self.cmd_blobstats_type = {}
         self.cmd_edit_type = {}
+        self.cmd_varproc_type = {}
         self.cmd_detect = None
         self.cmd_detectblobs = None
+        self.cmd_stitchblobs = None
+        self.cmd_blobstats = None
         self.cmd_stitch = None
         self.cmd_edit = None
         self.source_files = {}
@@ -50,8 +56,10 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         self.variables_rename = []
         self.outputcmd_detect_default = ""
         self.in_fmt_stitch_default = ""
-        self.out_fmt_profile1_default = ""
-        self.out_fmt_profile2_default = ""
+        self.outputcmd_detect_default1 = ""
+        self.in_fmt_stitch_default1 = ""
+        self.out_fmt_nodeedit1_default = ""
+        self.out_fmt_nodeedit2_default = ""
 
     @abstractmethod
     def run(self, *args, **kwargs):
@@ -170,7 +178,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             os.system('rm '+do_tracking_file)
 
     def _tidy_data_files(self, timestamp, timestamp_end, var_list,
-                         f_remove='processed'):
+                         f_remove=False):
         """
         Remove processed input files for this timestamp (tidy up)
 
@@ -183,14 +191,13 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         """
         self.logger.info(f"Tidy up input files")
         files_remove = []
-        #source_files, processed_files = self._generate_file_names(timestamp,
-        #                                                          timestamp_end)
 
-        if f_remove == 'processed':
+        if f_remove:
             for var in var_list:
                 f = self._file_pattern_processed(timestamp, timestamp_end, var,
                                                  frequency=self.data_frequency)
                 if os.path.exists(os.path.join(self.outdir, f)):
+                    self.logger.info(f"Deleting {os.path.join(self.outdir, f)}")
                     os.remove(os.path.join(self.outdir, f))
 
     def _tidy_track_files(
@@ -248,8 +255,8 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             #        date_start=timestart,
             #        variable=varname
             #    )
-        self.logger.info(f"fname from pattern {fname} {stream} {timestart} "
-                        f"{timeend} {varname}")
+        #self.logger.info(f"fname from pattern {fname} {stream} {timestart} "
+        #                f"{timeend} {varname}")
         return fname.strip('"')
 
     def _file_pattern_processed(self, timestart, timeend, varname,
@@ -280,17 +287,17 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             variable=varname
         )
 
-        self.logger.info(f"fname from _file_pattern_processed {fname} {timestart} " + \
-                         "{timeend} {varname}")
+        #self.logger.info(f"fname from _file_pattern_processed {fname} {timestart} " + \
+        #                 "{timeend} {varname}")
         return fname.strip('"')
 
     def _construct_command(self, track_type):
         """
         Read the TempestExtreme command line parameters from the configuration.
         :param str track_type: The name of the type of tracking to run, possible
-            values: detect, stitch, profile
-        :returns: A dictionary with keys of `detect`, `stitch`, `profile`,
-            `detectblobs`, `nodefilefilter` and the values for each of these is
+            values: detect, stitch, nodeedit
+        :returns: A dictionary with keys of `detect`, `stitch`, `nodeedit`,
+            `detectblobs`, `nodefilefilter` `varproc1`, `varproc2`, and the values for each of these is
             a string containing the command line parameters for each of these
             TempestExtreme steps. The parameters are sorted into alphabetical
             order in each line.
@@ -304,32 +311,46 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
 
         commands = {}
         fmt_value = {}
-        for step in ["detect", "stitch", "profile", "detectblobs", "nodefilefilter"]:
+        for step in ["detect", "stitch", "nodeedit", "detectblobs", "nodefilefilter", "varproc1", "varproc2", "stitchblobs", "blobstats"]:
             try:
                 step_config = self.app_config.section_to_dict(f"{track_type}_{step}")
                 step_arguments = []
                 for parameter in sorted(list(step_config.keys())):
+                    #print('step_config ',step, step_config, parameter)
                     if step_config[parameter]:
-                        if "_default" in step_config[parameter]:
+                        if "_default1" in step_config[parameter]:
                             if "outputcmd" in step_config[parameter]:
-                                param_value = self.outputcmd_detect_default
+                                param_value = self.outputcmd_detect_default1
                             elif "in_fmt_stitch" in step_config[parameter]:
-                                param_value = self.in_fmt_stitch_default
-                                fmt_value['stitch'] = self.in_fmt_stitch_default
-                            elif "out_fmt_profile1" in step_config[parameter]:
-                                param_value = self.out_fmt_profile1_default
-                                fmt_value['profile'] = self.out_fmt_profile1_default
-                            elif "out_fmt_profile2" in step_config[parameter]:
-                                param_value = self.out_fmt_profile2_default
-                                fmt_value['profile'] = self.out_fmt_profile2_default
+                                param_value = self.in_fmt_stitch_default1
+                                fmt_value['stitch'] = self.in_fmt_stitch_default1
+                            elif "out_fmt_nodeedit1" in step_config[parameter]:
+                                param_value = self.out_fmt_nodeedit1_default
+                                fmt_value['nodeedit'] = self.out_fmt_nodeedit1_default
+                            elif "out_fmt_nodeedit2" in step_config[parameter]:
+                                param_value = self.out_fmt_nodeedit2_default
+                                fmt_value['nodeedit'] = self.out_fmt_nodeedit2_default
+                        elif "_default2" in step_config[parameter]:
+                            if "outputcmd" in step_config[parameter]:
+                                param_value = self.outputcmd_detect_default2
+                            elif "in_fmt_stitch" in step_config[parameter]:
+                                param_value = self.in_fmt_stitch_default2
+                                fmt_value['stitch'] = self.in_fmt_stitch_default2
+                        elif "_default3" in step_config[parameter]:
+                            if "out_fmt_nodeedit" in step_config[parameter]:
+                                param_value = self.out_fmt_nodeedit_default3
+                                fmt_value['nodeedit'] = self.out_fmt_nodeedit_default3
+                            elif "in_fmt_nodeedit" in step_config[parameter]:
+                                param_value = self.in_fmt_nodeedit_default3
                         else:
                             param_value = step_config[parameter]
                             if "in_fmt" in parameter:
                                 fmt_value["stitch"] = step_config[parameter]
                             elif "out_fmt" in parameter:
-                                fmt_value["profile"] = step_config[parameter]
+                                fmt_value["nodeedit"] = step_config[parameter]
 
-                        if "regional" in parameter:
+                        # arguments that take no values
+                        if "regional" in parameter or "tagonly" in parameter or "findblobs" in parameter or "out_headers" in parameter or "out_fulltime" in parameter:
                             if step_config[parameter]:
                                 step_arguments.append(f"--{parameter} ")
                         else:
@@ -349,15 +370,36 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                 names = col_names.split(',')
                 for im, name in enumerate(names):
                     self.column_names[track_type+"_"+step][name] = im
-            if step == "profile" and commands[step] is not None:
-                col_names = column_initial + fmt_value["profile"].strip('\"') +\
+            if step == "nodeedit" and commands[step] is not None:
+                col_names = column_initial + fmt_value["nodeedit"].strip('\"') +\
                             column_final
-                self.column_names[track_type+"_profile"] = {}
+                self.column_names[track_type+"_nodeedit"] = {}
                 names = col_names.split(',')
                 for im, name in enumerate(names):
                     self.column_names[track_type+"_"+step][name] = im
 
         return commands
+
+    def _command_parameter(self, track_type, command, argument):
+        """
+        Read the TempestExtreme command line parameters from the configuration,
+        and return the requested value of the argument for the given command.
+        :param str track_type: The name of the type of tracking to run, possible
+            values: detect, stitch, nodeedit
+        :param str command: The name of the TempestExtremes command (as 
+            defined in the input namelist
+        :param str track_type: The name of the argument
+        :returns: The parameter value of the given argument.
+        :rtype: str
+        """
+
+        step = command
+        step_config = self.app_config.section_to_dict(f"{track_type}_{step}")
+        if argument in sorted(list(step_config.keys())):
+            value = step_config[argument]
+        else:
+            value = None
+        return value
 
     def _check_time_coord(self, fnames):
         """
@@ -384,55 +426,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                 self.logger.debug(f"cmd {cmd}")
                 subprocess.call(cmd, shell=True)
 
-    def _generate_file_names(self, time_start, time_end):
-        """
-        Generate a list of input and output filenames.
-
-        :param str time_start: The timestep of the start of the data period to process
-        :param str time_end: The timestep of the end of the data period to process
-        :returns: A dictionary of the files found for this period and a string
-            containing the period between samples in the input data.
-        :rtype: dict
-        """
-        source_filenames = {}
-        processed_filenames = {}
-
-        variables_required = {}
-        # these variables need to have a new var_name, either because the default
-        # from the UM is confusing or unknown, and these names are needed for the
-        # variable name inputs for the TempestExtremes scripts
-        for var in self.variables_input:
-            variables_required[var] = {'fname': var}
-            if var in self.variables_rename:
-                variables_required[var].update({'varname_new': var})
-
-        for var in self.variables_input:
-            filename = self._file_pattern(self.time_range.split('-')[0],
-                                          self.time_range.split('-')[1],
-                                          variables_required[var]["fname"],
-                                          um_stream='pt')
-
-            input_path = os.path.join(self.input_directory, filename)
-
-            # make the output path filename similar to CMIP6 naming, will be standard
-            # regardless of the input filename structure
-            # varname_new, freq, time
-            var_name = var
-            if "varname_new" in variables_required[var]:
-                var_name = variables_required[var]["varname_new"]
-            output_path = self._file_pattern_processed(time_start,
-                                                       time_end,
-                                                       var_name,
-                                                       self.frequency)
-
-            output_path = os.path.join(self.outdir, output_path)
-
-            source_filenames[var] = input_path
-            processed_filenames[var] = output_path
-
-        return source_filenames, processed_filenames
-
-    def _identify_processed_files(self, time_start, time_end, grid_resol="native"):
+    def _identify_processed_files(self, time_start, time_end, grid_resol="native", variables=None):
         """
         Identify the processed input files to be used by tracking.
         The files have pseudo-CMIP6 filenames, using the processed variable names
@@ -449,6 +443,9 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         processed_filenames = {}
         variable_units = {}
 
+        if variables is None:
+            variables = self.variables_rename
+
         # Identify the grid and orography file
         processed_filenames["orog"] = os.path.join(
             self.outdir, "orography.nc"
@@ -460,7 +457,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             raise Exception("Processed file directory does not exist, should come "\
                     "from pre-processing " + self.outdir)
 
-        for var_name in self.variables_rename:
+        for var_name in variables:
             # identify the processed path filename similar to CMIP6 naming,
             # will be standard regardless of the input filename structure
             # varname_new, freq, time,
@@ -470,7 +467,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
                                                        self.data_frequency)
             output_path = os.path.join(self.outdir, output_path)
 
-            self.logger.debug(f"read file {output_path}")
+            #self.logger.debug(f"read file {output_path}")
             if os.path.exists(output_path):
                 processed_filenames[var_name] = output_path
                 cube = iris.load_cube(output_path)
@@ -514,14 +511,18 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             eval(self.app_config.get_property("common", "regrid_resolutions"))
         self.data_frequency = self.app_config.get_property("common",
                                                             "data_frequency")
-        self.outputcmd_detect_default = self.app_config.get_property("common",
-                                                            "outputcmd_detect_default")
-        self.in_fmt_stitch_default = self.app_config.get_property("common",
-                                                            "in_fmt_stitch_default")
-        self.out_fmt_profile1_default = self.app_config.get_property("common",
-                                                            "out_fmt_profile1_default")
-        self.out_fmt_profile2_default = self.app_config.get_property("common",
-                                                            "out_fmt_profile2_default")
+        self.outputcmd_detect_default1 = self.app_config.get_property("common",
+                                                            "outputcmd_detect_default1")
+        self.outputcmd_detect_default2 = self.app_config.get_property("common",
+                                                            "outputcmd_detect_default2")
+        self.in_fmt_stitch_default1 = self.app_config.get_property("common",
+                                                            "in_fmt_stitch_default1")
+        self.in_fmt_stitch_default2 = self.app_config.get_property("common",
+                                                            "in_fmt_stitch_default2")
+        self.in_fmt_nodeedit_default3 = self.app_config.get_property("common",
+                                                            "in_fmt_nodeedit_default3")
+        self.out_fmt_nodeedit_default3 = self.app_config.get_property("common",
+                                                            "out_fmt_nodeedit_default3")
 
     def _get_environment_variables(self):
         """
@@ -539,19 +540,37 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             self.runid = self.suiteid.split('-')[1]
         except:
             self.runid = self.suiteid
-        self.resolution_code = os.environ["RESOL_ATM"]
+
         self.cylc_task_cycle_time = os.environ["CYLC_TASK_CYCLE_TIME"]
-        self.time_cycle = os.environ["TIME_CYCLE"]
+        self.enddate = os.environ["ENDDATE"]
+        self.inline_tracking = os.environ["INLINE_TRACKING"]
+        self.lastcycle = os.environ["LASTCYCLE"]
+        self.ncodir = os.environ["NCODIR"]
+        self.next_cycle = os.environ["NEXT_CYCLE"]
         self.previous_cycle = os.environ["PREVIOUS_CYCLE"]
+        self.resolution_code = os.environ["RESOL_ATM"]
+        self.startdate = os.environ["STARTDATE"]
+        self.time_cycle = os.environ["TIME_CYCLE"]
         self.tm2_cycle = os.environ["TM2_CYCLE"]
         self.tp2_cycle = os.environ["TP2_CYCLE"]
-        self.next_cycle = os.environ["NEXT_CYCLE"]
-        self.startdate = os.environ["STARTDATE"]
-        self.enddate = os.environ["ENDDATE"]
-        self.lastcycle = os.environ["LASTCYCLE"]
-        self.is_last_cycle = os.environ["IS_LAST_CYCLE"]
-        self.ncodir = os.environ["NCODIR"]
-        self.inline_tracking = os.environ["INLINE_TRACKING"]
+        track_by_year = os.environ["TRACK_BY_YEAR"]
+        track_at_end = os.environ["TRACK_AT_END"]
+        is_last_cycle = os.environ["IS_LAST_CYCLE"]
+
+        if is_last_cycle == "true":
+            self.is_last_cycle = True
+        else:
+            self.is_last_cycle = False
+
+        if "T" in track_by_year or "t" in track_by_year:
+            self.track_by_year = True
+        else:
+            self.track_by_year = False
+
+        if "T" in track_at_end or "t" in track_at_end:
+            self.track_at_end = True
+        else:
+            self.track_at_end = False
 
 def _is_date_after(timetest, timeref):
     """

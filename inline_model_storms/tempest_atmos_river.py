@@ -166,15 +166,15 @@ class TempestExtremesAR(TempestExtremesAbstract):
             self.logger.error(f"no dot files to process ")
 
         # Test if new year, if so then concatenate all the previous year data into 1 file
-        is_new_year = (timestamp_day[0:4] != timestamp_previous[0:4]) and \
-                _is_date_after(timestamp_previous, self.startdate)
+        is_end_year = (timestamp_day[:4] != self.next_cycle[:4]) and \
+                _is_date_after(timestamp_day, self.startdate)
 
-        if is_new_year:
-            self._produce_annual_ar_file(self.outdir, timestamp_previous[0:4])
+        if is_end_year:
+            self._produce_annual_ar_file(self.outdir, timestamp_day[0:4])
 
-        if self.is_last_cycle == "true" or is_new_year:
+        if self.is_last_cycle == "true" or is_end_year:
             # archive any remaining AR data
-            self._archive_ar_data(self.outdir, is_new_year, timestamp_previous[0:4])
+            self._archive_ar_data(self.outdir, is_end_year, timestamp_day[0:4])
 
     def _run_detect_blobs(self, timestamp):
         """
@@ -328,8 +328,9 @@ class TempestExtremesAR(TempestExtremesAbstract):
                 )
                 raise RuntimeError(msg)
             else:
-                for f in files_to_join:
-                    os.remove(f)
+                if os.path.exists(file_year):
+                    for f in files_to_join:
+                        os.remove(f)
 
     def _archive_ar_data(self, outdir, is_new_year, year):
         """
@@ -354,7 +355,8 @@ class TempestExtremesAR(TempestExtremesAbstract):
                     shutil.copy(ar_file, ar_archive_file)
                 else:
                     os.replace(ar_file, ar_archive_file)
-                    os.remove(ar_file)
+                    if os.path.exists(ar_file):
+                        os.remove(ar_file)
 
                 with open(ar_archive_file + ".arch", "a"):
                     os.utime(ar_archive_file + ".arch", None)

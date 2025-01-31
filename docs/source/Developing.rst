@@ -7,11 +7,11 @@ Git workflow
 #. Setup your SSH keys (https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/connecting-to-github-with-ssh)
 #. Obtain a local copy of the suite::
 
-      git@github.com:MetOffice/inline_model_metrics.git
+      git@github.com:MetOffice/inline_model_storms.git
 
 #. Change directory into the repository::
 
-      cd inline_model_metrics
+      cd inline_model_storms
 
 #. If you have previously cloned the repository then update your local copy to
    the latest version::
@@ -36,7 +36,7 @@ Git workflow
       git push origin <branch-name>
 
 #. You can make as many commits and pushes as you want.
-#. Create a pull request at https://github.com/MetOffice/inline_model_metrics/compare
+#. Create a pull request at https://github.com/MetOffice/inline_model_storms/compare
    by in the compare box selecting your branch and clicking on "Create pull request".
 
 #. Once the code has been reviewed then the pull request can be merged using the
@@ -79,9 +79,9 @@ Running the tests
 
       export PYTHONPATH=/path/to/tempest_helper:$PYTHONPATH
 
-#. Add the inline_model_metrics code to your `PYTHONPATH`::
+#. Add the inline_model_storms code to your `PYTHONPATH`::
 
-      export PYTHONPATH=/path/to/inline_model_metrics:$PYTHONPATH
+      export PYTHONPATH=/path/to/inline_model_storms:$PYTHONPATH
 #. Run the tests::
 
       pytest -vv
@@ -92,7 +92,7 @@ Building the Documentation
 In the checked out repository, make sure that your Python environment includes
 Sphinx (standard scientific ones do)::
 
-   export PYTHONPATH=/path/to/inline_model_metrics
+   export PYTHONPATH=/path/to/inline_model_storms
    cd docs
    make clean && make html
 

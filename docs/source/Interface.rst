@@ -439,3 +439,20 @@ The variable list specified in the `out_fmt` command mentioned above can be long
 
 Note that these need to be consistent with each other, as the code is unable to check that the output from one command is consistent with the input to the next command.
 
+Settings to change between 3hr and 6hr data
+###########################################
+
+When the data frequency is changed from 3hr to 6hr, there are several changes needed in some of the namelists.
+
+* `app/tempest_tracker/rose-app.conf`: 
+ * `detect` and `detectblobs`: change timefilter to "6hr" from "3hr"
+ * `stitch` command: `range` value from 4.0 to 8.0
+ * `stitch` command: add argument: `prioritize="MSLP"`
+
+Settings for 360_day calendar
+#############################
+
+If the input data uses a 360_day calendar, then an extra argument is needed for the `detect` namelist in `app/tempest_tracker/rose-app.conf`:
+ * `detect`: caltype="360_day"
+
+The commands that use netcdf files as input use the calendar they find automatically, but stitch just uses the detect txt files and hence does not know the calendar by default.

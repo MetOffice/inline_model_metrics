@@ -178,7 +178,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
             os.system('rm '+do_tracking_file)
 
     def _tidy_data_files(self, timestamp, timestamp_end, var_list,
-                         f_remove='processed'):
+                         f_remove=False):
         """
         Remove processed input files for this timestamp (tidy up)
 
@@ -192,7 +192,7 @@ class TempestExtremesAbstract(AbstractApp, metaclass=ABCMeta):
         self.logger.info(f"Tidy up input files")
         files_remove = []
 
-        if f_remove == 'processed':
+        if f_remove:
             for var in var_list:
                 f = self._file_pattern_processed(timestamp, timestamp_end, var,
                                                  frequency=self.data_frequency)

@@ -332,8 +332,10 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     if not os.path.exists(f_archived):
                         with open(f_archive, "a"):
                             os.utime(f_archive, None)
-                            
-
+                    else:
+                        with open(f_archived, "a"):
+                            os.utime(f_archived, None)
+                        
             files = sorted(glob.glob(detectblobs_files_search))
             self.logger.debug(f"Files to archive {detectblobs_files_search} {files}")
             if len(files) > 0:
@@ -346,6 +348,9 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     if not os.path.exists(f_archived):
                         with open(f_archive, "a"):
                             os.utime(f_archive, None)
+                    else:
+                        with open(f_archived, "a"):
+                            os.utime(f_archived, None)
 
             for ttype in tracked_types:
                 tracked_file = os.path.join(
@@ -366,6 +371,9 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                             if not os.path.exists(f_archived):
                                 with open(f_archive, "a"):
                                     os.utime(f_archive, None)
+                            else:
+                                with open(f_archived, "a"):
+                                    os.utime(f_archived, None)
 
     def _tidy_files(self, outdir, timestamp_tm2, timestamp_previous):
         """

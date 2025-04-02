@@ -1015,7 +1015,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 self._read_write_and_plot_tracks(
                     nodeedit_file_alltimes,
                     track_type,
-                    processed_files_needed[0],
+                    processed_files_needed[-1],
                     start_date,
                     end_date,
                     self.variable_units,

@@ -747,6 +747,11 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
             self.cmd_detect_type[track_type] = cmd_detect
             self.logger.info(f"Detect command {cmd_detect}")
 
+            # need to extract the variables used in the outputcmd part
+            # loop through this list and extract the needed variables from the
+            # processed files
+            # use these to construct the in_file
+
             sts = subprocess.run(
                 cmd_detect,
                 shell=True,

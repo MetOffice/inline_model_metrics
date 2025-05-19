@@ -85,49 +85,52 @@ class TempestExtremesAR(TempestExtremesAbstract):
         self.logger.debug(f"next_cycle {self.next_cycle}")
         self.logger.debug(f"is_last_cycle {self.is_last_cycle}")
 
-        # Check whether the cylc date is after the most recent post-processed file
-        condition = self._get_tracking_date(timestamp_day)
-        if condition == "AlreadyComplete":
-            return
 
-        # First write a dot_file to document which timestamps are yet to be tracked
         dot_file = "do_ar_tracking"
         candidate_files = []
-        self._write_dot_track_file(timestamp_day, timestamp_endday, dot_file=dot_file)
+        for regrid_resol in self.regrid_resolutions:
+            self.outdir = self.output_directory+'_'+regrid_resol
 
-        dot_tracking_files = sorted(glob.glob(os.path.join(self.outdir, dot_file+"*")))
-        self.logger.debug(f"dot_tracking_files {dot_tracking_files}")
+            # Check whether the cylc date is after the most recent post-processed file
+            #condition = self._get_tracking_date(timestamp_day)
+            #if condition == "AlreadyComplete":
+            #    return
 
-        # loop through all dot files
-        # only remove dot file when the detection has run
-        # only try to do detection on data with timestamp before the current time
-        # (want to make sure that data has been written on the previous step, hence
-        # no conflict with writing if postproc on the next step might be running)
-        if dot_tracking_files:
-            for do_track_file in dot_tracking_files:
-                ftimestamp_day = do_track_file.split(".")[1].split("-")[0]
-                ftimestamp_endday = do_track_file.split(".")[1].split("-")[1]
+            # First write a dot_file to document which timestamps are yet to be tracked
+            self._write_dot_track_file(timestamp_day, timestamp_endday, dot_file=dot_file)
 
-                if self.inline_tracking == "True":
-                    self.logger.debug(f"running inline {self.inline_tracking}")
-                    # do not want to do calculations on data after or equal to the current
-                    # cycle date, unless it is also the last
-                    if _is_date_after_or_equal(ftimestamp_day, timestamp_day) \
+            dot_tracking_files = sorted(glob.glob(os.path.join(self.outdir, dot_file+"*")))
+            self.logger.debug(f"dot_tracking_files {dot_tracking_files}")
+
+            # loop through all dot files
+            # only remove dot file when the detection has run
+            # only try to do detection on data with timestamp before the current time
+            # (want to make sure that data has been written on the previous step, hence
+            # no conflict with writing if postproc on the next step might be running)
+            if dot_tracking_files:
+                for do_track_file in dot_tracking_files:
+                    ftimestamp_day = do_track_file.split(".")[1].split("-")[0]
+                    ftimestamp_endday = do_track_file.split(".")[1].split("-")[1]
+
+                    if self.inline_tracking == "True":
+                        self.logger.debug(f"running inline {self.inline_tracking}")
+                        # do not want to do calculations on data after or equal to the current
+                        # cycle date, unless it is also the last
+                        if _is_date_after_or_equal(ftimestamp_day, timestamp_day) \
                             and not self.is_last_cycle == "true":
-                        continue
+                            continue
 
-                    # if timestamp_previous is before the start date then no work
-                    if _is_date_after(self.startdate, timestamp_previous):
-                        continue
+                        # if timestamp_previous is before the start date then no work
+                        if _is_date_after(self.startdate, timestamp_previous):
+                            continue
 
-                # find the relevant input data using the given file pattern
-                fname = self._file_pattern_processed(ftimestamp_day+"*", "*", "psl",
+                    # find the relevant input data using the given file pattern
+                    fname = self._file_pattern_processed(ftimestamp_day+"*", "*", "psl",
                                            frequency=self.data_frequency)
-                file_search = os.path.join(self.input_directory, fname)
-                self.logger.debug(f"file_search {file_search}")
 
-                for regrid_resol in self.regrid_resolutions:
-                    self.outdir = self.output_directory+'_'+regrid_resol
+                    file_search = os.path.join(self.input_directory, fname)
+                    self.logger.debug(f"file_search {file_search}")
+
                     fname = self._file_pattern_processed(ftimestamp_day + "*", "*",
                                                          "viwve",
                                                          frequency=self.data_frequency)
@@ -165,16 +168,18 @@ class TempestExtremesAR(TempestExtremesAbstract):
         else:
             self.logger.error(f"no dot files to process ")
 
-        # Test if new year, if so then concatenate all the previous year data into 1 file
-        is_end_year = (timestamp_day[:4] != self.next_cycle[:4]) and \
+        for regrid_resol in self.regrid_resolutions:
+            self.outdir = self.output_directory+'_'+regrid_resol
+            # Test if new year, if so then concatenate all the previous year data into 1 file
+            is_end_year = (timestamp_day[:4] != self.next_cycle[:4]) and \
                 _is_date_after(timestamp_day, self.startdate)
 
-        if is_end_year:
-            self._produce_annual_ar_file(self.outdir, timestamp_day[0:4])
+            if is_end_year and self.track_by_year:
+                self._produce_annual_ar_file(self.outdir, timestamp_day[0:4])
 
-        if self.is_last_cycle == "true" or is_end_year:
-            # archive any remaining AR data
-            self._archive_ar_data(self.outdir, is_end_year, timestamp_day[0:4])
+            if self.is_last_cycle == "true" or (is_end_year and self.track_by_year):
+                # archive any remaining AR data
+                self._archive_ar_data(self.outdir, is_end_year, timestamp_day[0:4])
 
     def _run_detect_blobs(self, timestamp):
         """
@@ -272,8 +277,10 @@ class TempestExtremesAR(TempestExtremesAbstract):
                     )
                     raise RuntimeError(msg)
                 else:
-                    os.remove(fname)
-                    os.rename(fname+".nc4", fname)
+                    if os.path.exists(fname+".nc4"):
+                        if os.path.exists(fname):
+                            os.remove(fname)
+                        os.rename(fname+".nc4", fname)
 
                 # convert time coordinate to unlimited
                 cmd = os.path.join(self.ncodir, "ncks") + " --mk_rec_dmn time " + \
@@ -291,8 +298,10 @@ class TempestExtremesAR(TempestExtremesAbstract):
                     )
                     raise RuntimeError(msg)
                 else:
-                    os.remove(fname)
-                    os.rename(fname[:-3] + "_unlimited.nc", fname)
+                    if os.path.exists(fname[:-3] + "_unlimited.nc"):
+                        if os.path.exists(fname):
+                            os.remove(fname)
+                        os.rename(fname[:-3] + "_unlimited.nc", fname)
 
     def _produce_annual_ar_file(
         self,
@@ -339,7 +348,7 @@ class TempestExtremesAR(TempestExtremesAbstract):
         """
         if self.is_last_cycle == "true" :
             files_to_archive = glob.glob(os.path.join(outdir, "*ARmask*.nc"))
-        elif is_new_year:
+        elif (is_new_year and self.track_by_year):
             files_to_archive = glob.glob(os.path.join(outdir, "*ARmask*year_"+year+"*.nc"))
         self.logger.info(f"files_to_archive {files_to_archive}")
 
@@ -353,9 +362,11 @@ class TempestExtremesAR(TempestExtremesAbstract):
                                                 os.path.basename(ar_file))
                 if self.is_last_cycle:
                     shutil.copy(ar_file, ar_archive_file)
+                    self.logger.info(f"copy file to archive {ar_file} {ar_archive_file}")
                 else:
                     os.replace(ar_file, ar_archive_file)
-                    if os.path.exists(ar_file):
+                    self.logger.info(f"replace file to archive {ar_file} {ar_archive_file}")
+                    if os.path.exists(ar_archive_file):
                         os.remove(ar_file)
 
                 with open(ar_archive_file + ".arch", "a"):

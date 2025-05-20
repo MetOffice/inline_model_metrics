@@ -202,8 +202,8 @@ class UMTempestPostprocess(TempestExtremesAbstract):
                     archive_error = True
                 else:
                     #os.remove(fname)
-                    if 'archive' not in os.path.dirname(fname):
-                        os.rename(fname_arch, fname_archived)
+                    #if 'archive' not in os.path.dirname(fname):
+                    os.rename(fname_arch, fname_archived)
                 self.logger.debug(sts.stdout)
 
                 if archive_error:

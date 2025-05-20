@@ -60,61 +60,64 @@ class UMTempestPreprocess(TempestExtremesAbstract):
         self._get_app_options()
         self._get_environment_variables()
 
-        output_dir_native = self.output_directory+'_native'
-        if not os.path.exists(output_dir_native):
-            try:
-                os.makedirs(output_dir_native)
-            except PermissionError:
-                msg = f"Unable to create output directory {output_dir_native}"
-                self.logger.error(msg)
-                sys.exit(1)
-        output_dir_native_archive = os.path.join(self.output_directory + '_native', self._archived_files_dir)
-        if not os.path.exists(output_dir_native_archive):
-            try:
-                os.makedirs(output_dir_native_archive)
-            except PermissionError:
-                msg = f"Unable to create output directory {output_dir_native_archive}"
-                self.logger.error(msg)
-                sys.exit(1)
+        for regrid_resol in self.regrid_resolutions:
+            self.outdir = self.output_directory + '_' + regrid_resol
+            output_dir_native = self.output_directory+'_' + regrid_resol
+            if not os.path.exists(output_dir_native):
+                try:
+                    os.makedirs(output_dir_native)
+                except PermissionError:
+                    msg = f"Unable to create output directory {output_dir_native}"
+                    self.logger.error(msg)
+                    sys.exit(1)
 
-        # initialise variables that might not get set if no detection step
-        self.outdir = self.output_directory + "_" + "native"
+            output_dir_native_archive = os.path.join(self.output_directory + '_'+regrid_resol, self._archived_files_dir)
+            if not os.path.exists(output_dir_native_archive):
+                try:
+                    os.makedirs(output_dir_native_archive)
+                except PermissionError:
+                    msg = f"Unable to create output directory {output_dir_native_archive}"
+                    self.logger.error(msg)
+                    sys.exit(1)
 
-        # find out what the psl (or pr for mcs) variable is for the input data
-        if self.variables_rename[0] == "psl":
-            psl_input_var = self.variables_input[0]
-        elif self.variables_rename[0] == "pr":
-            psl_input_var = self.variables_input[0]
-        else:
-            psl_input_var = "psl"
+            # initialise variables that might not get set if no detection step
+            #self.outdir = self.output_directory + "_" + "native"
 
-        self.logger.debug(
-            f"CYLC_TASK_CYCLE_TIME {self.cylc_task_cycle_time}, "
-            f"runid {self.runid}, psl_input_var {psl_input_var}"
-        )
+            # find out what the psl (or pr for mcs) variable is for the input data
+            if self.variables_rename[0] == "psl":
+                psl_input_var = self.variables_input[0]
+            elif self.variables_rename[0] == "pr":
+                psl_input_var = self.variables_input[0]
+            else:
+                psl_input_var = "psl"
 
-        timestamp_day = self.cylc_task_cycle_time[:8]
-        timestamp_endday = self.next_cycle[:8]
+            self.logger.debug(
+                f"CYLC_TASK_CYCLE_TIME {self.cylc_task_cycle_time}, "
+                f"runid {self.runid}, psl_input_var {psl_input_var}"
+            )
 
-        condition = self._set_tracking_date(timestamp_day)
-        if condition == "AlreadyComplete":
-            self.logger.debug(f"This step already completed ,"
-            f"{self.cylc_task_cycle_time}")
-            return
+            timestamp_day = self.cylc_task_cycle_time[:8]
+            timestamp_endday = self.next_cycle[:8]
 
-        # this section of code processes data from the current timestep
-        current_time = timestamp_day
-        # find the relevant input data using the given file pattern
-        fname = self._file_pattern(current_time + "*", "*", psl_input_var,
+            condition = self._set_tracking_date(timestamp_day)
+            if condition == "AlreadyComplete":
+                self.logger.debug(f"This step already completed ,"
+                                  f"{self.cylc_task_cycle_time}")
+                return
+
+            # this section of code processes data from the current timestep
+            current_time = timestamp_day
+            # find the relevant input data using the given file pattern
+            fname = self._file_pattern(current_time + "*", "*", psl_input_var,
                                    frequency="*", stream=self.um_stream)
-        file_search = os.path.join(self.input_directory, fname)
-        self.logger.debug(f"file_search {file_search}")
+            file_search = os.path.join(self.input_directory, fname)
+            self.logger.debug(f"file_search {file_search}")
 
-        # pre-process the input files and produce standard processed files for
-        # later use
-        if glob.glob(file_search):
-            for regrid_resol in self.regrid_resolutions:
-                self.outdir = self.output_directory + '_' + regrid_resol
+            # pre-process the input files and produce standard processed files for
+            # later use
+            if glob.glob(file_search):
+                if not os.path.exists(self.outdir):
+                    os.makedirs(self.outdir)
                 source_files, processed_files, variable_units = \
                     self._generate_data_files(timestamp_day, timestamp_endday,
                                               psl_input_var, grid_resol=regrid_resol)

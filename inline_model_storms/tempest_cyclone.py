@@ -332,8 +332,10 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     if not os.path.exists(f_archived):
                         with open(f_archive, "a"):
                             os.utime(f_archive, None)
-                            
-
+                    else:
+                        with open(f_archived, "a"):
+                            os.utime(f_archived, None)
+                        
             files = sorted(glob.glob(detectblobs_files_search))
             self.logger.debug(f"Files to archive {detectblobs_files_search} {files}")
             if len(files) > 0:
@@ -346,6 +348,9 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                     if not os.path.exists(f_archived):
                         with open(f_archive, "a"):
                             os.utime(f_archive, None)
+                    else:
+                        with open(f_archived, "a"):
+                            os.utime(f_archived, None)
 
             for ttype in tracked_types:
                 tracked_file = os.path.join(
@@ -366,6 +371,9 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                             if not os.path.exists(f_archived):
                                 with open(f_archive, "a"):
                                     os.utime(f_archive, None)
+                            else:
+                                with open(f_archived, "a"):
+                                    os.utime(f_archived, None)
 
     def _tidy_files(self, outdir, timestamp_tm2, timestamp_previous):
         """
@@ -739,6 +747,11 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
             self.cmd_detect_type[track_type] = cmd_detect
             self.logger.info(f"Detect command {cmd_detect}")
 
+            # need to extract the variables used in the outputcmd part
+            # loop through this list and extract the needed variables from the
+            # processed files
+            # use these to construct the in_file
+
             sts = subprocess.run(
                 cmd_detect,
                 shell=True,
@@ -1007,7 +1020,7 @@ class TempestExtremesCyclone(TempestExtremesAbstract):
                 self._read_write_and_plot_tracks(
                     nodeedit_file_alltimes,
                     track_type,
-                    processed_files_needed[0],
+                    processed_files_needed[-1],
                     start_date,
                     end_date,
                     self.variable_units,
